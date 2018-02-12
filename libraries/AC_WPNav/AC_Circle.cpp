@@ -23,6 +23,22 @@ const AP_Param::GroupInfo AC_Circle::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE",    1, AC_Circle, _rate,    AC_CIRCLE_RATE_DEFAULT),
 
+    AP_GROUPINFO("MINOFF",    2, AC_Circle, _min_offset,    300),
+
+    AP_GROUPINFO("CLRATE",    3, AC_Circle, _clmb_rate,    100),
+
+    AP_GROUPINFO("DSRATE",    4, AC_Circle, _descent_rate,    100),
+
+    AP_GROUPINFO("TRNVEL",    5, AC_Circle, _turn_vel,    0.5),
+
+    AP_GROUPINFO("POLEHT",    6, AC_Circle, _pole_height,    10000),
+
+    AP_GROUPINFO("AUTO",    7, AC_Circle, _auto,    0),
+
+    AP_GROUPINFO("OBS",    8, AC_Circle, _obs,    200.0),
+
+    AP_GROUPINFO("OBSRT",    9, AC_Circle, _obsrt,    200.0),
+
     AP_GROUPEND
 };
 
@@ -93,6 +109,38 @@ void AC_Circle::init()
     init_start_angle(true);
 }
 
+/// init - initialise circle controller setting center using stopping point and projecting out based on the copter's heading
+///     caller should set the position controller's x,y and z speeds and accelerations before calling this
+void AC_Circle::set_center_heading(float heading, float distance)
+{
+    // get stopping point
+    const Vector3f& stopping_point = _pos_control.get_pos_target();
+    if (distance <= 2500.0) {_radius=distance;}
+
+    // set circle center to circle_radius ahead of stopping point
+    _center.x = stopping_point.x + _radius * cosf(heading);
+    _center.y = stopping_point.y + _radius * sinf(heading);
+    _center.z = stopping_point.z;
+
+    // calculate velocities
+    calc_velocities(true);
+
+    _angle_total = 0;
+    _angle = wrap_PI(heading-M_PI);
+}
+
+void AC_Circle::set_center_only(float heading, float distance)
+{
+    // get stopping point
+    const Vector3f& stopping_point = _pos_control.get_pos_target();
+    if (distance <= 2500.0) {_radius=distance;}
+
+    // set circle center to circle_radius ahead of stopping point
+    _center.x = stopping_point.x + _radius * cosf(heading);
+    _center.y = stopping_point.y + _radius * sinf(heading);
+    _center.z = stopping_point.z;
+}
+
 /// set_circle_rate - set circle rate in degrees per second
 void AC_Circle::set_rate(float deg_per_sec)
 {
@@ -100,6 +148,12 @@ void AC_Circle::set_rate(float deg_per_sec)
         _rate = deg_per_sec;
         calc_velocities(false);
     }
+}
+
+/// change_circle_radius - change circle radius in cm
+void AC_Circle::change_radius(float offset)
+{
+	_radius+=offset;
 }
 
 /// update - update circle controller
@@ -163,6 +217,83 @@ void AC_Circle::update()
         _pos_control.update_xy_controller(AC_PosControl::XY_MODE_POS_ONLY, 1.0f, false);
     }
 }
+
+void AC_Circle::update(float angle_rate, float radius_change)
+{
+    // calculate dt
+    float dt = _pos_control.time_since_last_xy_update();
+
+    // update circle position at poscontrol update rate
+    if (dt >= _pos_control.get_dt_xy()) {
+
+        // double check dt is reasonable
+        if (dt >= 0.2f) {
+            dt = 0.0f;
+        }
+	/*
+	if(_radius+radius_change*dt <= 0.0) {set_radius(0.0);}
+	else {set_radius(_radius+radius_change*dt);}
+	set_rate(angle_rate);
+	*/
+
+	if(_radius < 50) {_radius=50;}
+	else {
+        	// limit speed up angular acceleration, but don't limit slowing down
+        	if ((_angular_vel < angle_rate) && (angle_rate >= 0.0)) {
+            		_angular_vel += fabsf(100/_radius) * dt;
+            		_angular_vel = MIN(_angular_vel, angle_rate);
+        	}
+		if ((_angular_vel < angle_rate) && (angle_rate < 0.0)) {
+            		_angular_vel = angle_rate;
+        	}
+        	if ((_angular_vel >= angle_rate) && (angle_rate <= 0.0)) {
+        	        _angular_vel -= fabsf(100/_radius) * dt;
+            		_angular_vel = MAX(_angular_vel, angle_rate);
+        	}
+		if ((_angular_vel >= angle_rate) && (angle_rate > 0.0)) {
+            		_angular_vel = angle_rate;
+		}
+	}
+        // update the target angle and total angle traveled
+        //float angle_change = _angular_vel * dt;
+	float angle_change= _angular_vel * dt;
+        _angle += angle_change;
+        _angle = wrap_PI(_angle);
+        _angle_total += angle_change;
+	if(_radius+radius_change*dt <= 50.0) {_radius=50.0;}
+	else {_radius=_radius+radius_change*dt;}
+        // if the circle_radius is zero we are doing panorama so no need to update loiter target
+        if (!is_zero(_radius)) {
+            // calculate target position
+            Vector3f target;
+            target.x = _center.x + _radius * cosf(-_angle);
+            target.y = _center.y - _radius * sinf(-_angle);
+            target.z = _pos_control.get_alt_target();
+
+            // update position controller target
+            _pos_control.set_xy_target(target.x, target.y);
+
+            // heading is 180 deg from vehicles target position around circle
+            _yaw = wrap_PI(_angle-M_PI) * AC_CIRCLE_DEGX100;
+        }else{
+            // set target position to center
+            Vector3f target;
+            target.x = _center.x;
+            target.y = _center.y;
+            target.z = _pos_control.get_alt_target();
+
+            // update position controller target
+            _pos_control.set_xy_target(target.x, target.y);
+
+            // heading is same as _angle but converted to centi-degrees
+            _yaw = _angle * AC_CIRCLE_DEGX100;
+        }
+
+        // update position controller
+        _pos_control.update_xy_controller(AC_PosControl::XY_MODE_POS_ONLY, 1.0f, false);
+    }
+}
+
 
 // get_closest_point_on_circle - returns closest point on the circle
 //  circle's center should already have been set

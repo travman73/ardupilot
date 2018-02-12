@@ -28,6 +28,10 @@ public:
     ///     caller should set the position controller's x,y and z speeds and accelerations before calling this
     void init();
 
+    void set_center_heading(float heading, float distance);
+
+    void set_center_only(float heading, float distance);
+
     /// set_circle_center in cm from home
     void set_center(const Vector3f& center) { _center = center; }
 
@@ -39,14 +43,32 @@ public:
     /// set_radius - sets circle radius in cm
     void set_radius(float radius_cm) { _radius = radius_cm; }
 
+    float automatic() { return _auto;}
+
+    float obs() { return _obs;}
+
+    float obsrt() { return _obsrt;}
+
     /// set_circle_rate - set circle rate in degrees per second
     void set_rate(float deg_per_sec);
+
+    /// change_circle_radius - change circle radius in cm
+    void change_radius(float offset);
 
     /// get_angle_total - return total angle in radians that vehicle has circled
     float get_angle_total() const { return _angle_total; }
 
+    float min_off() const { return _min_offset; }
+    float clmb_rate() const { return _clmb_rate; }
+    float descent_rate() const { return _descent_rate; }
+    float turn_vel() const { return _turn_vel; }
+    float pole_height() const { return _pole_height; }
+
     /// update - update circle controller
     void update();
+
+    /// update -update circle controller with modified radius and angular rate
+    void update(float angle_rate, float radius_change);
 
     /// get desired roll, pitch which should be fed into stabilize controllers
     int32_t get_roll() const { return _pos_control.get_roll(); }
@@ -88,6 +110,14 @@ private:
     // parameters
     AP_Float    _radius;        // maximum horizontal speed in cm/s during missions
     AP_Float    _rate;          // rotation speed in deg/sec
+    AP_Float    _min_offset;        // maximum horizontal speed in cm/s during missions
+    AP_Float    _clmb_rate;          // rotation speed in deg/sec
+    AP_Float	_descent_rate;	     // in cm/s
+    AP_Float    _turn_vel;	//in cm/s
+    AP_Float    _pole_height;	//in cm
+    AP_Float	_auto; //enable auto circle
+    AP_Float	_obs;
+    AP_Float	_obsrt;
 
     // internal variables
     Vector3f    _center;        // center of circle in cm from home

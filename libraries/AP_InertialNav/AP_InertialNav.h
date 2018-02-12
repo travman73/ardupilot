@@ -58,6 +58,36 @@ public:
      */
     virtual const Vector3f&    get_position() const = 0;
 
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
+     /**
+     * get_position - returns the current position relative to the home location in cm.
+     *
+     * the home location was set with AP_InertialNav::set_home_position(int32_t, int32_t)
+     *
+     * @return
+     */
+    virtual const Vector2f&    get_of_position() const=0;
+
+     /**
+     * get_velocity - returns the current velocity in cm/s
+     *
+     * @return velocity vector:
+     *      		.x : latitude  velocity in cm/s
+     * 				.y : longitude velocity in cm/s
+     */
+    virtual const Vector2f&    get_of_velocity() const=0;
+
+    virtual uint32_t nav_switch() const = 0;
+
+    virtual const Vector2f&	get_switch() const=0;
+
+    virtual bool flownav() const=0;
+///////////////////////////////////////////////////////////////////////////////////
+
+
     /**
      * get_llh - updates the provided location with the latest calculated location including absolute altitude
      *  returns true on success (i.e. the EKF knows it's latest position), false on failure
@@ -112,6 +142,10 @@ public:
      * @return climbrate in cm/s (positive up)
      */
     virtual float       get_velocity_z() const = 0;
+
+    virtual float       get_of_altitude() const = 0;
+
+    virtual float       get_of_velocity_z() const = 0;
 };
 
 #if AP_AHRS_NAVEKF_AVAILABLE

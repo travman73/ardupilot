@@ -21,7 +21,7 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 
 // Maximum number of range finder instances available on this platform
-#define RANGEFINDER_MAX_INSTANCES 2
+#define RANGEFINDER_MAX_INSTANCES 4
 #define RANGEFINDER_GROUND_CLEARANCE_CM_DEFAULT 10
 #define RANGEFINDER_PREARM_ALT_MAX_CM           200
 #define RANGEFINDER_PREARM_REQUIRED_CHANGE_CM   50
@@ -145,7 +145,11 @@ public:
     int16_t ground_clearance_cm() const {
         return _ground_clearance_cm[primary_instance];
     }
-
+    float m11() const { return _M11;}
+    float m12() const { return _M12;}
+    float m21() const { return _M21;}
+    float m22() const { return _M22;}
+    float offset1() const { return _offset_1;}
     // query status
     RangeFinder_Status status(uint8_t instance) const;
     RangeFinder_Status status(void) const {
@@ -188,6 +192,11 @@ private:
     uint8_t num_instances:3;
     float estimated_terrain_height;
     AP_SerialManager &serial_manager;
+    AP_Float _M11;
+    AP_Float _M12;
+    AP_Float _M21;
+    AP_Float _M22;
+    AP_Float _offset_1;
 
     void detect_instance(uint8_t instance);
     void update_instance(uint8_t instance);  

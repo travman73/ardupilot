@@ -27,7 +27,6 @@ bool Copter::althold_init(bool ignore_checks)
 
     // stop takeoff if running
     takeoff_stop();
-
     return true;
 }
 
@@ -134,14 +133,11 @@ void Copter::althold_run()
 
     case AltHold_Flying:
         motors.set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+	
         // call attitude controller
         attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
-
-        // adjust climb rate using rangefinder
-        if (rangefinder_alt_ok()) {
-            // if rangefinder is ok, use surface tracking
-            target_climb_rate = get_surface_tracking_climb_rate(target_climb_rate, pos_control.get_alt_target(), G_Dt);
-        }
+	
+	//target_climb_rate= upper_surface_tracking(target_climb_rate, pos_control.get_alt_target(), G_Dt);
 
         // call position controller
         pos_control.set_alt_target_from_climb_rate_ff(target_climb_rate, G_Dt, false);

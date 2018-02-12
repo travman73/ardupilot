@@ -191,7 +191,7 @@ private:
     struct {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
-        int16_t alt_cm;     // tilt compensated altitude (in cm) from rangefinder
+        float alt_cm;     // tilt compensated altitude (in cm) from rangefinder
         uint32_t last_healthy_ms;
         LowPassFilterFloat alt_cm_filt; // altitude filter
     } rangefinder_state = { false, false, 0, 0 };
@@ -452,10 +452,29 @@ private:
     // Altitude
     // The cm/s we are moving up or down based on filtered data - Positive = UP
     int16_t climb_rate;
+    //Filtered Obstacle Height
+    float filt_obs_height = 0.0;
     float target_rangefinder_alt;   // desired altitude in cm above the ground
+    float range_vel=0.0;
+    float range_dt=0.0;
+    float range_ms=0.0;
     int32_t baro_alt;            // barometer altitude in cm above home
     float baro_climbrate;        // barometer climbrate in cm/s
     LowPassFilterVector3f land_accel_ef_filter; // accelerations for land and crash detector tests
+
+    //These Variables are used for Pole Detection
+    bool pole_detected = false;
+    float yaw_time = 0.0;
+    float heading_add = 0.0;
+    float min_distance = 0.0;
+    float heading_pole = 0.0;
+    int pole_rotate_counter = 0.0;
+    bool pole_ascend = false;
+    bool pole_rotate = false;
+    bool pole_descend = false;
+    bool pole_end = false;
+    float altitude_start = 0.0;
+    float pole_leash_altitude = 0.0;
 
     // filtered pilot's throttle input used to cancel landing if throttle held high
     LowPassFilterFloat rc_throttle_control_in_filter;
@@ -491,6 +510,17 @@ private:
     // Integration time (in seconds) for the gyros (DCM algorithm)
     // Updated with the fast loop
     float G_Dt;
+
+/*
+    //overhead avoidance direct altitude instintaneous max change
+    float overhead_obstacle_effort_cm=200.0;
+*/
+
+    //For Determining if Optical Flow is Being Used
+    bool opt_flow_nav = false;
+
+
+    float NavVelGainScaler = 1.0;
 
     // Inertial Navigation
     AP_InertialNav_NavEKF inertial_nav;
@@ -678,6 +708,7 @@ private:
     void set_motor_emergency_stop(bool b);
     float get_smoothing_gain();
     void get_pilot_desired_lean_angles(float roll_in, float pitch_in, float &roll_out, float &pitch_out, float angle_max);
+    void get_pilot_desired_lean_percent(float roll_in, float pitch_in, float &roll_out, float &pitch_out);
     float get_pilot_desired_yaw_rate(int16_t stick_angle);
     void check_ekf_reset();
     float get_roi_yaw();
@@ -688,6 +719,13 @@ private:
     float get_pilot_desired_climb_rate(float throttle_control);
     float get_non_takeoff_throttle();
     float get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt);
+    float overhead_surface_tracking_climb_rate(int16_t target_rate, float current_overhead_target_cm, float dt);
+    float pole_rotation_alg(int i, float radius, float angle, float vel);
+    float upper_surface_tracking(int16_t target_rate, float current_alt_target, float dt);
+    float upper_surface_tracking_v2(int16_t target_rate, float current_alt_target, float dt);
+    float upper_surface_tracking_v3(int16_t target_rate, float current_alt_target, float dt);
+    float horizontal_obstacle_avoid();
+    bool pole_detection(float dt, float sweep_time, float sweep_angle);
     void auto_takeoff_set_start_alt(void);
     void auto_takeoff_attitude_run(float target_yaw_rate);
     void set_accel_throttle_I_from_pilot_throttle();
@@ -784,6 +822,11 @@ private:
     void get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, int16_t yaw_in, float &roll_out, float &pitch_out, float &yaw_out);
     bool althold_init(bool ignore_checks);
     void althold_run();
+    bool altholdavd_init(bool ignore_checks);
+    void altholdavd_run();
+    float get_of_pitch(float input_pitch);
+    float get_of_roll(float input_pitch);
+
     bool auto_init(bool ignore_checks);
     void auto_run();
     void auto_takeoff_start(const Location& dest_loc);

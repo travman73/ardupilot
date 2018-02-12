@@ -38,6 +38,29 @@ void Copter::get_pilot_desired_lean_angles(float roll_in, float pitch_in, float 
     pitch_out = pitch_in;
 }
 
+// get_pilot_desired_desired_lean_percent - transform pilot's roll or pitch input into a desired percentage
+// returns desired percent (i.e. 1 = 100%)
+void Copter::get_pilot_desired_lean_percent(float roll_in, float pitch_in, float &roll_out, float &pitch_out)
+{
+    // scale roll_in, pitch_in to ANGLE_MAX parameter range
+    float scaler = 1.0/(float)ROLL_PITCH_YAW_INPUT_MAX;
+    roll_in *= scaler;
+    pitch_in *= scaler;
+
+    // do circular limit
+    float total_in = norm(pitch_in, roll_in);
+    if (total_in > 1.0) {
+        float ratio = 1.0 / total_in;
+        roll_in *= ratio;
+        pitch_in *= ratio;
+    }
+
+    // return
+    roll_out = roll_in;
+    pitch_out = pitch_in;
+}
+
+
 // get_pilot_desired_heading - transform pilot's yaw input into a
 // desired yaw rate
 // returns desired yaw rate in centi-degrees per second
@@ -252,6 +275,302 @@ float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current
     distance_error = (target_rangefinder_alt - rangefinder_state.alt_cm) - (current_alt_target - current_alt);
     velocity_correction = distance_error * g.rangefinder_gain;
     velocity_correction = constrain_float(velocity_correction, -THR_SURFACE_TRACKING_VELZ_MAX, THR_SURFACE_TRACKING_VELZ_MAX);
+
+    // return combined pilot climb rate + rate to correct rangefinder alt error
+    return (target_rate + velocity_correction);
+#else
+    return (float)target_rate;
+#endif
+}
+
+// upper_surface_tracking - offset copter at the desired distance below roof
+//      returns climb rate (in cm/s) which should be passed to the position controller
+//	also can modify desired altitude directly
+float Copter::upper_surface_tracking(int16_t target_rate, float current_alt_target, float dt)
+{
+
+    float current_alt = inertial_nav.get_altitude();	//Altitude above ground from GPS/Barometer/Etc..
+    float climb_rate_z = inertial_nav.get_velocity_z(); //Current_Climb_Rate
+    float abords =1.0;					//Checks Rangefinder health (basic check if above minimum return value);
+    float pos_crl_range_cm=optflow.get_slow_down_cm();	//Distance in addition to offset distance in which copter should begin to slow
+							//dowm
+    float offset_dist_cm=optflow.get_obstacle_offset_cm();	//Minimum clearance copter should maintain below overhead obstacle
+    float max_crl_cms=40.0;				//Maximum climb rate when copter starts getting close to overhead obstacle
+    float min_crl_cms=0.0;				//Maximum climb rate just before copter crosses the minimum clearance distance
+    float temp_target_rate_cms=0.0;			//Buffer for comparing target_rate
+    float temp_target_cm=0.0;				//Buffer for comparing current_alt_target
+    float alt_correction_cm=0.0;			//Altitude Correction Desired
+
+    //int16_t rang_alt = rangefinder.distance_cm();	//Get Overhead Rangefinder Distance
+    if(rangefinder.distance_cm() <= 5) {abords=0.0;}			//See if Rangefinder is healthy (if not set aboards=0.0)
+    float rang_alt = rangefinder.distance_cm();	//Compensate for copter tilt angle
+    //if(overhead_obstacle_effort_cm < 100.0) {overhead_obstacle_effort_cm=overhead_obstacle_effort_cm+50.0*dt;}
+    if((rang_alt < (offset_dist_cm + pos_crl_range_cm)) && (abords==1.0)) {	//If copter is within distance of overhead obstacle
+	if(rang_alt > offset_dist_cm){						//If we haven't crossed the minimum overhead clearance
+										//start scaling the maximum ascent distance
+		temp_target_rate_cms=((rang_alt-offset_dist_cm)/pos_crl_range_cm*(max_crl_cms-min_crl_cms));
+		if(temp_target_rate_cms < target_rate) {target_rate = temp_target_rate_cms;}
+		//Added to reduce overshoot
+		if((climb_rate_z >= 100.0) && ((current_alt+30.0) <= current_alt_target)) {pos_control.set_alt_target(current_alt);}
+		if(target_rate >= 100.0) {target_rate = 100.0;}
+	}
+	else{
+	/*
+		if(target_rate > 0) {target_rate=0;}
+		temp_target_cm=rang_alt+current_alt-offset_dist_cm;
+		if(temp_target_cm < current_alt_target) {
+			alt_correction_cm=current_alt_target-temp_target_cm;
+			if(overhead_obstacle_effort_cm >= alt_correction_cm) {
+				overhead_obstacle_effort_cm=overhead_obstacle_effort_cm-alt_correction_cm;
+				pos_control.set_alt_target(temp_target_cm);
+			}
+			else{
+				temp_target_cm=current_alt_target-overhead_obstacle_effort_cm;
+				pos_control.set_alt_target(temp_target_cm);
+				overhead_obstacle_effort_cm=0.0;
+			}
+		}
+	}
+	*/
+	//Less aggressive Altitude Standoff Controller
+		temp_target_cm=rang_alt+current_alt-offset_dist_cm;
+		if(target_rate >= 0.0) {target_rate = 0.0;}	//cm/s
+//Modified Stuff Here
+/*
+		if(temp_target_cm < current_alt_target) {
+			if(target_rate >= -50.0) {target_rate = -50.0;} //cm/s
+		}
+*/
+		if (dt > 0.0) {
+		temp_target_rate_cms=(temp_target_cm-current_alt_target)/dt;
+		}
+		else {temp_target_rate_cms = -50.0;}
+		if(temp_target_rate_cms <= -50.0) {temp_target_rate_cms = -50.0;}
+		if(target_rate >= temp_target_rate_cms) {target_rate = temp_target_rate_cms;};
+	}
+	
+     }
+
+     temp_target_rate_cms=(rang_alt-offset_dist_cm)/dt;
+     if((temp_target_rate_cms < target_rate) && (abords==1.0) && (temp_target_rate_cms >= 0.0)) {target_rate=temp_target_rate_cms;}
+    return (target_rate);
+}
+
+// upper_surface_tracking_v2 - offset copter at the desired distance below roof
+//      returns climb rate (in cm/s) which should be passed to the position controller
+//	also can modify desired altitude directly
+float Copter::upper_surface_tracking_v2(int16_t target_rate, float current_alt_target, float dt)
+{
+
+    float current_alt = inertial_nav.get_altitude();	//Altitude above ground from GPS/Barometer/Etc..
+    float climb_rate_z = inertial_nav.get_velocity_z(); //Current_Climb_Rate
+    float abords =1.0;					//Checks Rangefinder health (basic check if above minimum return value);
+    float pos_crl_range_cm=optflow.get_slow_down_cm();	//Distance in addition to offset distance in which copter should begin to slow
+    float deadband=optflow.rng_deadband();
+							//dowm
+    float offset_dist_cm=optflow.get_obstacle_offset_cm();	//Minimum clearance copter should maintain below overhead obstacle
+    float max_crl_cms=40.0;				//Maximum climb rate when copter starts getting close to overhead obstacle
+    float min_crl_cms=0.0;				//Maximum climb rate just before copter crosses the minimum clearance distance
+    float temp_target_rate_cms=0.0;			//Buffer for comparing target_rate
+    float temp_target_cm=0.0;				//Buffer for comparing current_alt_target
+    float alt_correction_cm=0.0;			//Altitude Correction Desired
+    float diff_hgt;
+    float temp_obs_height;
+    //int16_t rang_alt = rangefinder.distance_cm();	//Get Overhead Rangefinder Distance
+    if(rangefinder_state.alt_cm <= 5) {abords=0.0;}			//See if Rangefinder is healthy (if not set aboards=0.0)
+    float rang_alt = rangefinder_state.alt_cm;	//Compensate for copter tilt angle
+    temp_obs_height = rang_alt +current_alt-offset_dist_cm;
+    if (rang_alt >= 3000.0) {return (target_rate);}
+    else if (abords == 0.0) {return (target_rate);}
+    else if ( rang_alt >= (pos_crl_range_cm + offset_dist_cm)) {
+	filt_obs_height = temp_obs_height;
+	return (target_rate);
+    }
+    else if ( temp_obs_height >= filt_obs_height ) {
+	if ((temp_obs_height - filt_obs_height) >= deadband) {
+		filt_obs_height += 50.0*dt;
+	}
+	if (current_alt_target >= filt_obs_height) {
+		if(target_rate >= -50.0) {target_rate = -50.0;}
+	}
+	if (target_rate >= 50.0) {target_rate = 50.0;}
+	if (current_alt_target+target_rate*dt >= filt_obs_height) {
+		if (target_rate >= 0.0) {target_rate = 0.0;}
+	}
+	return (target_rate);
+	}
+    else {
+	filt_obs_height -=50.0*dt;
+	if (target_rate >= -50.0) {target_rate = -50.0;}
+	return (target_rate);
+	}
+}
+
+// upper_surface_tracking - offset copter at the desired distance below roof
+//      returns climb rate (in cm/s) which should be passed to the position controller
+//	also can modify desired altitude directly
+float Copter::upper_surface_tracking_v3(int16_t target_rate, float current_alt_target, float dt)
+{
+
+    float current_alt = inertial_nav.get_altitude();	//Altitude above ground from GPS/Barometer/Etc..
+    float climb_rate_z = inertial_nav.get_velocity_z(); //Current_Climb_Rate
+    float abords =1.0;					//Checks Rangefinder health (basic check if above minimum return value);
+    float pos_crl_range_cm=optflow.get_slow_down_cm();	//Distance in addition to offset distance in which copter should begin to slow
+							//dowm
+    float offset_dist_cm=optflow.get_obstacle_offset_cm();	//Minimum clearance copter should maintain below overhead obstacle
+    float max_crl_cms=40.0;				//Maximum climb rate when copter starts getting close to overhead obstacle
+    float min_crl_cms=0.0;				//Maximum climb rate just before copter crosses the minimum clearance distance
+    float temp_target_rate_cms=0.0;			//Buffer for comparing target_rate
+    float temp_target_cm=0.0;				//Buffer for comparing current_alt_target
+    float alt_correction_cm=0.0;			//Altitude Correction Desired
+    filt_obs_height=rangefinder_state.alt_cm;
+    //int16_t rang_alt = rangefinder.distance_cm();	//Get Overhead Rangefinder Distance
+    if(rangefinder_state.alt_cm <= 5) {abords=0.0;}			//See if Rangefinder is healthy (if not set aboards=0.0)
+    float rang_alt = rangefinder_state.alt_cm;	//Compensate for copter tilt angle
+    //if(overhead_obstacle_effort_cm < 100.0) {overhead_obstacle_effort_cm=overhead_obstacle_effort_cm+50.0*dt;}
+    if((rang_alt < (offset_dist_cm + pos_crl_range_cm)) && (abords==1.0)) {	//If copter is within distance of overhead obstacle
+	if(rang_alt > offset_dist_cm){						//If we haven't crossed the minimum overhead clearance
+										//start scaling the maximum ascent distance
+		temp_target_rate_cms=((rang_alt-offset_dist_cm)/pos_crl_range_cm*(max_crl_cms-min_crl_cms));
+		if(temp_target_rate_cms < target_rate) {target_rate = temp_target_rate_cms;}
+		//Added to reduce overshoot
+		if((climb_rate_z >= 100.0) && ((current_alt+30.0) <= current_alt_target)) {pos_control.set_alt_target(current_alt);}
+		if(target_rate >= 100.0) {target_rate = 100.0;}
+	}
+	else{
+	/*
+		if(target_rate > 0) {target_rate=0;}
+		temp_target_cm=rang_alt+current_alt-offset_dist_cm;
+		if(temp_target_cm < current_alt_target) {
+			alt_correction_cm=current_alt_target-temp_target_cm;
+			if(overhead_obstacle_effort_cm >= alt_correction_cm) {
+				overhead_obstacle_effort_cm=overhead_obstacle_effort_cm-alt_correction_cm;
+				pos_control.set_alt_target(temp_target_cm);
+			}
+			else{
+				temp_target_cm=current_alt_target-overhead_obstacle_effort_cm;
+				pos_control.set_alt_target(temp_target_cm);
+				overhead_obstacle_effort_cm=0.0;
+			}
+		}
+	}
+	*/
+	//Less aggressive Altitude Standoff Controller
+		temp_target_cm=rang_alt+current_alt-offset_dist_cm;
+		if(target_rate >= 0.0) {target_rate = 0.0;}	//cm/s
+//Modified Stuff Here
+/*
+		if(temp_target_cm < current_alt_target) {
+			if(target_rate >= -50.0) {target_rate = -50.0;} //cm/s
+		}
+*/
+		if (dt > 0.0) {
+		temp_target_rate_cms=(temp_target_cm-current_alt_target)/dt;
+		}
+		else {temp_target_rate_cms = -50.0;}
+		if(temp_target_rate_cms <= -50.0) {temp_target_rate_cms = -50.0;}
+		if(target_rate >= temp_target_rate_cms) {target_rate = temp_target_rate_cms;};
+	}
+	
+     }
+
+     temp_target_rate_cms=(rang_alt-offset_dist_cm)/dt;
+     if((temp_target_rate_cms < target_rate) && (abords==1.0) && (temp_target_rate_cms >= 0.0)) {target_rate=temp_target_rate_cms;}
+    return (target_rate);
+}
+
+float Copter::horizontal_obstacle_avoid()
+{
+	int16_t dist = rangefinder.distance_cm();
+	float absolute=100.0;
+	float begin=400.0;
+	float angle_add=0.0;
+	float max_angle=2000.0;
+	if (dist <= absolute) {angle_add=max_angle;}
+	else if (dist <= begin) {angle_add=(begin-dist)/(begin-absolute)*max_angle;}
+	return angle_add;
+}
+
+bool Copter::pole_detection(float dt, float sweep_time, float sweep_angle) {
+	int16_t dist = rangefinder.distance_cm();
+	sweep_time=sweep_time/1.82;
+	sweep_angle=sweep_angle/2.0;
+	if(yaw_time >= (sweep_time*1.82)) {
+		heading_add = 0.0;
+		yaw_time = 0.0;
+		return true;
+	}
+/* old code
+	else if(yaw_time == 0.0 ) {
+		min_distance= dist;
+		heading_pole=ahrs.yaw;
+		yaw_time+=dt;
+		heading_add = sweep_angle*50.0*sinf((1.0/sweep_time)*yaw_time*6.28);
+		return false;
+	}
+	else {
+		if (min_distance > dist) {
+			min_distance = dist;
+			heading_pole = ahrs.yaw;
+		}
+		yaw_time+=dt;
+		heading_add = sweep_angle*50.0*sinf((1.0/sweep_time)*yaw_time*6.28);
+		return false;
+	}
+*/
+	else if(yaw_time == 0.0 ) {
+		min_distance= dist;
+		heading_pole=ahrs.yaw;
+		yaw_time+=dt;
+		heading_add = -50.0*sweep_angle+sweep_angle*50.0*cosf((1.0/sweep_time)*yaw_time*6.28);
+		return false;
+	}
+	else {
+		if (min_distance > dist) {
+			min_distance = dist;
+			heading_pole = ahrs.yaw;
+		}
+		yaw_time+=dt;
+		if(yaw_time < (0.75*sweep_time)) {
+			heading_add = -50.0*sweep_angle+sweep_angle*50.0*cosf((1.0/sweep_time)*yaw_time*6.28);
+		}
+		else if(yaw_time < (0.75*sweep_time+sweep_time/3.14)){
+			heading_add += sweep_angle*50.0*6.28/sweep_time*dt;
+		}
+		else {
+			heading_add = sweep_angle*50.0+sweep_angle*50.0*cosf((1.0/sweep_time)*(yaw_time-(sweep_time/3.14))*6.28);
+		}
+		return false;
+	}
+}
+
+float Copter::pole_rotation_alg(int i, float radius, float angle, float vel)
+{
+	float angular_rate = 0.0;
+	if (angle >= ((((float)i - 1.0) * (2.0*3.14/3.0))+(3.14/6.0))) {
+		pole_rotate=false;
+	}
+	else {angular_rate = vel;}
+	return angular_rate;
+}
+
+// overhead_surface_tracking_climb_rate - lower copter at the desired distance away from overhang
+//      returns climb rate (in cm/s) which should be passed to the position controller
+float Copter::overhead_surface_tracking_climb_rate(int16_t target_rate, float current_overhead_target_cm, float dt)
+{
+#if RANGEFINDER_ENABLED == ENABLED
+    static uint32_t last_call_ms = 0;
+    float velocity_correction;
+    float abords =1.0;
+
+    int16_t temp_alt = rangefinder.distance_cm();
+    if(temp_alt <= 5) {abords=0.0;}
+    temp_alt = (float)temp_alt * MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
+
+    temp_alt=temp_alt-current_overhead_target_cm;
+
+    velocity_correction = temp_alt * g.rangefinder_gain * 10.0*abords;
+    velocity_correction = constrain_float(velocity_correction, -150.0, 0.0);
 
     // return combined pilot climb rate + rate to correct rangefinder alt error
     return (target_rate + velocity_correction);

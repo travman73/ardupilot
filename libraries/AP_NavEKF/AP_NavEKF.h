@@ -300,5 +300,4 @@ private:
     AP_Int8 _fallback;              // EKF-to-DCM fallback strictness. 0 = trust EKF more, 1 = fallback more conservatively.
     AP_Int8 _altSource;             // Primary alt source during optical flow navigation. 0 = use Baro, 1 = use range finder.
     AP_Int8 _gpsCheck;              // Bitmask controlling which preflight GPS checks are bypassed
-
 };

@@ -137,6 +137,8 @@ public:
     /// set_alt_target_to_current_alt - set altitude target to current altitude
     void set_alt_target_to_current_alt() { _pos_target.z = _inav.get_altitude(); }
 
+    void of_set_alt_target_to_current_alt() { _pos_target.z = _inav.get_of_altitude(); }
+
     /// relax_alt_hold_controllers - set all desired and targets to measured
     void relax_alt_hold_controllers(float throttle_setting);
 
@@ -164,6 +166,8 @@ public:
 
     /// update_z_controller - fly to altitude in cm above home
     void update_z_controller();
+
+    void update_of_z_controller();
 
     // get_leash_down_z, get_leash_up_z - returns vertical leash lengths in cm
     float get_leash_down_z() const { return _leash_down_z; }
@@ -213,6 +217,9 @@ public:
     /// shift position target target in x, y axis
     void shift_pos_xy_target(float x_cm, float y_cm);
 
+    /// shift target xy when switching between gps and optical flow
+    void check_for_nav_switch(void);
+
     /// get_desired_velocity - returns xy desired velocity (i.e. feed forward) in cm/s in lat and lon direction
     const Vector3f& get_desired_velocity() { return _vel_desired; }
 
@@ -243,6 +250,10 @@ public:
     /// update_xy_controller - run the horizontal position controller - should be called at 100hz or higher
     ///     when use_desired_velocity is true the desired velocity (i.e. feed forward) is incorporated at the pos_to_rate step
     void update_xy_controller(xy_mode mode, float ekfNavVelGainScaler, bool use_althold_lean_angle);
+
+    /// update_xy_controller_of - run the horizontal position controller - should be called at 100hz or higher
+    ///     when use_desired_velocity is true the desired velocity (i.e. feed forward) is incorporated at the pos_to_rate step
+    void update_xy_controller_of(xy_mode mode, float ekfNavVelGainScaler, bool use_althold_lean_angle, float roll_rc, float pitch_rc);
 
     /// set_target_to_stopping_point_xy - sets horizontal target to reasonable stopping position in cm from home
     void set_target_to_stopping_point_xy();
@@ -327,8 +338,12 @@ private:
     //          init_takeoff
     void pos_to_rate_z();
 
+    void of_pos_to_rate_z();
+
     // rate_to_accel_z - calculates desired accel required to achieve the velocity target
     void rate_to_accel_z();
+
+    void of_rate_to_accel_z();
 
     // accel_to_throttle - alt hold's acceleration controller
     void accel_to_throttle(float accel_target_z);
@@ -347,9 +362,20 @@ private:
     ///         velocity due to position error is reduce to a maximum of 1m/s
     void pos_to_rate_xy(xy_mode mode, float dt, float ekfNavVelGainScaler);
 
+    /// pos_to_rate_xy_of - horizontal position error to velocity controller
+    ///     converts position (_pos_target) to target velocity (_vel_target)
+    ///     when use_desired_rate is set to true:
+    ///         desired velocity (_vel_desired) is combined into final target velocity and
+    ///         velocity due to position error is reduce to a maximum of 1m/s
+    void pos_to_rate_xy_of(xy_mode mode, float dt, float ekfNavVelGainScaler);
+
     /// rate_to_accel_xy - horizontal desired rate to desired acceleration
     ///    converts desired velocities in lat/lon directions to accelerations in lat/lon frame
     void rate_to_accel_xy(float dt, float ekfNavVelGainScaler);
+
+    /// rate_to_accel_xy_of - horizontal desired rate to desired acceleration
+    ///    converts desired velocities in lat/lon directions to accelerations in lat/lon frame
+    void rate_to_accel_xy_of(float dt, float ekfNavVelGainScaler);
 
     /// accel_to_lean_angles - horizontal desired acceleration to lean angles
     ///    converts desired accelerations provided in lat/lon frame to roll/pitch angles
@@ -389,6 +415,11 @@ private:
     float       _leash;                 // horizontal leash length in cm.  target will never be further than this distance from the vehicle
     float       _leash_down_z;          // vertical leash down in cm.  target will never be further than this distance below the vehicle
     float       _leash_up_z;            // vertical leash up in cm.  target will never be further than this distance above the vehicle
+    uint32_t	_last_reset_ms = 0;		// last of to gps reset
+    Vector2f    _last_target_adj;	// last target adjustment
+    bool	_of_nav_engage = false;
+    bool	_just_switched = true;
+    uint32_t    _of_nav_switch;
 
     // output from controller
     float       _roll_target;           // desired roll angle in centi-degrees calculated by position controller

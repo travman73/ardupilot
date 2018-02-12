@@ -137,6 +137,7 @@ void AP_RangeFinder_PX4::update(void)
 
     if (count != 0) {
         state.distance_cm = sum / count * 100.0f;
+        //state.distance_cm = sum / count * 1000.0f; //cm reports in mm now
         state.distance_cm += ranger._offset[state.instance];
 
         // update range_valid state based on distance measured

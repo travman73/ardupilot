@@ -76,8 +76,14 @@ public:
     /// init_loiter_target - initialize's loiter position and feed-forward velocity from current pos and velocity
     void init_loiter_target();
 
+    /// of_init_loiter_target - initialize's loiter position and feed-forward velocity from current pos and velocity using optical flow
+    void init_of_loiter_target();
+
     /// loiter_soften_for_landing - reduce response for landing
     void loiter_soften_for_landing();
+
+    /// loiter_soften_for_landing - reduce response for landing
+    void of_loiter_soften_for_landing();
 
     /// calculate_loiter_leash_length - calculates the maximum distance in cm that the target position may be from the current location
     void calculate_loiter_leash_length();
@@ -102,6 +108,9 @@ public:
 
     /// update_loiter - run the loiter controller - should be called at 10hz
     void update_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler);
+
+    /// update_of loiter - run the loiter controller - should be called at 10hz
+    void update_of_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler, float roll_rc, float pitch_rc);
 
     ///
     /// brake controller
@@ -287,6 +296,8 @@ protected:
     /// initialise and check for ekf position reset and adjust loiter or brake target position
     void init_ekf_position_reset();
     void check_for_ekf_position_reset();
+    void check_for_ekf_z_reset();
+    void of_check_for_ekf_z_reset();
 
     /// spline protected functions
 

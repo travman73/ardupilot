@@ -1512,10 +1512,16 @@ void GCS_MAVLINK::send_opticalflow(AP_AHRS_NavEKF &ahrs, const OpticalFlow &optf
         0, // sensor id is zero
         flowRate.x,
         flowRate.y,
+/*
         bodyRate.x,
         bodyRate.y,
+*/
+
+	ahrs.get_of_x_pos(),
+	ahrs.get_of_y_pos(),
+
         optflow.quality(),
-        hagl); // ground distance (in meters) set to zero
+        ahrs.get_of_z_pos()); // ground distance (in meters) set to zero
 }
 #endif
 

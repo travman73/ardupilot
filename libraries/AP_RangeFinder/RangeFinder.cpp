@@ -395,7 +395,11 @@ const AP_Param::GroupInfo RangeFinder::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("4_ADDR", 48, RangeFinder, _address[3], 0),
 #endif
-    
+    AP_GROUPINFO("M11", 49, RangeFinder, _M11, 1),
+    AP_GROUPINFO("M12", 50, RangeFinder, _M12, 0),
+    AP_GROUPINFO("M21", 51, RangeFinder, _M21, 0),
+    AP_GROUPINFO("M22", 52, RangeFinder, _M22, 1),
+    AP_GROUPINFO("_OFFS1", 53, RangeFinder, _offset_1, 0.0),
     AP_GROUPEND
 };
 

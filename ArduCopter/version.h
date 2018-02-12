@@ -2,7 +2,7 @@
 
 #include "ap_version.h"
 
-#define THISFIRMWARE "APM:Copter V3.4.2"
+#define THISFIRMWARE "TJW:Copter_BRIDGE_HEX v0.1-beta"
 #define FIRMWARE_VERSION 3,4,2,FIRMWARE_VERSION_TYPE_OFFICIAL
 
 #ifndef GIT_VERSION

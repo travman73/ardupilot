@@ -228,6 +228,12 @@ struct PACKED log_Optflow {
     float flow_y;
     float body_x;
     float body_y;
+    float posf_x;
+    float posf_y;
+    //float velf_x;
+    //float velf_y;
+    uint16_t obs_s;
+    uint16_t obs_l;
 };
 
 // Write an optical flow packet
@@ -235,19 +241,31 @@ void Copter::Log_Write_Optflow()
 {
  #if OPTFLOW == ENABLED
     // exit immediately if not enabled
-    if (!optflow.enabled()) {
+    if (!optflow.enabled() && !optflow.ovr()) {
         return;
     }
     const Vector2f &flowRate = optflow.flowRate();
     const Vector2f &bodyRate = optflow.bodyRate();
+    const Vector2f &position = inertial_nav.get_of_position();
+    const Vector2f &velocity = inertial_nav.get_of_velocity();
+    float flowx;
+    flowx=flowRate.x*optflow.focal();
+    float flowy;
+    flowy=flowRate.y*optflow.focal();
     struct log_Optflow pkt = {
         LOG_PACKET_HEADER_INIT(LOG_OPTFLOW_MSG),
         time_us         : AP_HAL::micros64(),
         surface_quality : optflow.quality(),
-        flow_x          : flowRate.x,
-        flow_y          : flowRate.y,
-        body_x          : bodyRate.x,
-        body_y          : bodyRate.y
+        flow_x          : flowx,
+        flow_y          : flowy,      
+	body_x          : bodyRate.x,
+        body_y          : bodyRate.y,
+	posf_x		: position.x,
+	posf_y		: position.y,
+	//velf_x		: velocity.x,
+	//velf_y		: velocity.y
+	obs_s		: rangefinder.distance_cm(0),
+	obs_l		: rangefinder.distance_cm(1)
     };
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
  #endif     // OPTFLOW == ENABLED
@@ -305,7 +323,7 @@ struct PACKED log_Control_Tuning {
     float    inav_alt;
     int32_t  baro_alt;
     int16_t  desired_rangefinder_alt;
-    int16_t  rangefinder_alt;
+    float  rangefinder_alt;
     float    terr_alt;
     int16_t  target_climb_rate;
     int16_t  climb_rate;
@@ -325,16 +343,16 @@ void Copter::Log_Write_Control_Tuning()
     struct log_Control_Tuning pkt = {
         LOG_PACKET_HEADER_INIT(LOG_CONTROL_TUNING_MSG),
         time_us             : AP_HAL::micros64(),
-        throttle_in         : attitude_control.get_throttle_in(),
-        angle_boost         : attitude_control.angle_boost(),
-        throttle_out        : motors.get_throttle(),
-        throttle_hover      : motors.get_throttle_hover(),
-        desired_alt         : pos_control.get_alt_target() / 100.0f,
-        inav_alt            : inertial_nav.get_altitude() / 100.0f,
+        throttle_in         : yaw_time,//range_dt,
+        angle_boost         : heading_add,//inertial_nav.get_of_altitude(),//attitude_control.angle_boost(),
+        throttle_out        : min_distance,//inertial_nav.get_of_velocity_z(),//motors.get_throttle(),
+        throttle_hover      : heading_pole,//filt_obs_height,//inertial_nav.get_velocity_z(),//motors.get_throttle_hover(),
+        desired_alt         : pos_control.get_alt_target(),// / 100.0f,
+        inav_alt            : inertial_nav.get_altitude(),// / 100.0f,
         baro_alt            : baro_alt,
         desired_rangefinder_alt : (int16_t)target_rangefinder_alt,
         rangefinder_alt     : rangefinder_state.alt_cm,
-        terr_alt            : terr_alt,
+        terr_alt            : (float)rangefinder.distance_cm(),//terr_alt,
         target_climb_rate   : (int16_t)pos_control.get_vel_target_z(),
         climb_rate          : climb_rate
     };
@@ -752,20 +770,22 @@ void Copter::Log_Write_Throw(ThrowModeStage stage, float velocity, float velocit
 struct PACKED log_Proximity {
     LOG_PACKET_HEADER;
     uint64_t time_us;
-    uint8_t health;
-    float dist0;
-    float dist45;
-    float dist90;
-    float dist135;
-    float dist180;
-    float dist225;
-    float dist270;
-    float dist315;
+    float pos_x;
+    float pos_y;
+    float vel_x;
+    float vel_y;
+    float posf_x;
+    float posf_y; 
+    float velf_x;
+    float velf_y;
+    //float obs_r;
+    //float obs_h;
 };
 
 // Write proximity sensor distances
 void Copter::Log_Write_Proximity()
 {
+/*
 #if PROXIMITY_ENABLED == ENABLED
     // exit immediately if not enabled
     if (g2.proximity.get_status() == AP_Proximity::Proximity_NotConnected) {
@@ -798,7 +818,37 @@ void Copter::Log_Write_Proximity()
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
 #endif
 }
-
+*/
+#if OPTFLOW == ENABLED
+    // exit immediately if not enabled
+    if (!optflow.enabled() && !optflow.ovr()) {
+        return;
+    }
+    const Vector2f &flowRate = optflow.flowRate();
+    const Vector2f &bodyRate = optflow.bodyRate();
+    const Vector2f &positionf = inertial_nav.get_of_position();
+    const Vector2f &velocityf = inertial_nav.get_of_velocity();
+    const Vector3f &position = inertial_nav.get_position();
+    const Vector3f &velocity = inertial_nav.get_velocity();
+    const Vector3f &accel = ahrs.get_accel_ef_blended();
+    Vector2f ofvelNED;
+    ahrs.get_of_velocity_NED(ofvelNED);
+    struct log_Proximity pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_PROXIMITY_MSG),
+        time_us         : AP_HAL::micros64(),
+        //surface_quality : optflow.quality(),
+        pos_x           : position.x,
+        pos_y           : position.y,      
+	vel_x           : velocity.x,
+        vel_y           : velocity.y,
+	posf_x		: positionf.x,
+	posf_y		: positionf.y,
+	velf_x		: ofvelNED.x,
+	velf_y		: ofvelNED.y
+    };
+    DataFlash.WriteBlock(&pkt, sizeof(pkt));
+ #endif     // OPTFLOW == ENABLED
+}
 const struct LogStructure Copter::log_structure[] = {
     LOG_COMMON_STRUCTURES,
 #if AUTOTUNE_ENABLED == ENABLED
@@ -810,11 +860,11 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_PARAMTUNE_MSG, sizeof(log_ParameterTuning),
       "PTUN", "QBfHHH",          "TimeUS,Param,TunVal,CtrlIn,TunLo,TunHi" },  
     { LOG_OPTFLOW_MSG, sizeof(log_Optflow),       
-      "OF",   "QBffff",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY" },
+      "OF",   "QBffffffHH",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY,posf_x,posf_y,obs_s,obs_l" },
     { LOG_NAV_TUNING_MSG, sizeof(log_Nav_Tuning),       
       "NTUN", "Qffffffffff", "TimeUS,DPosX,DPosY,PosX,PosY,DVelX,DVelY,VelX,VelY,DAccX,DAccY" },
     { LOG_CONTROL_TUNING_MSG, sizeof(log_Control_Tuning),
-      "CTUN", "Qffffffeccfhh", "TimeUS,ThI,ABst,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt" },
+      "CTUN", "Qffffffecffhh", "TimeUS,ThI,ABst,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt" },
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance), 
       "PM",  "QHHIhBHI",    "TimeUS,NLon,NLoop,MaxT,PMT,I2CErr,INSErr,LogDrop" },
     { LOG_MOTBATT_MSG, sizeof(log_MotBatt),
@@ -842,7 +892,7 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_THROW_MSG, sizeof(log_Throw),
       "THRO",  "QBffffbbbb",  "TimeUS,Stage,Vel,VelZ,Acc,AccEfZ,Throw,AttOk,HgtOk,PosOk" },
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity),
-      "PRX",   "QBffffffff",  "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315" },
+      "PRX",   "Qffffffff",  "TimeUS,pos_x,pos_y,vel_x,vel_y,posf_x,posf_y,velf_x,velf_y" },
 };
 
 #if CLI_ENABLED == ENABLED

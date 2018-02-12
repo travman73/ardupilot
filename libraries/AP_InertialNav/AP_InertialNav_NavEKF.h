@@ -43,6 +43,35 @@ public:
      */
     const Vector3f&    get_position() const;
 
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
+     /**
+     * get_position - returns the current position relative to the home location in cm.
+     *
+     * the home location was set with AP_InertialNav::set_home_position(int32_t, int32_t)
+     *
+     * @return
+     */
+    const Vector2f&    get_of_position() const;
+
+     /**
+     * get_velocity - returns the current velocity in cm/s
+     *
+     * @return velocity vector:
+     *      		.x : latitude  velocity in cm/s
+     * 				.y : longitude velocity in cm/s
+     */
+    const Vector2f&    get_of_velocity() const;
+
+    uint32_t nav_switch() const;
+
+    const Vector2f&	get_switch() const;
+
+    bool flownav() const;
+///////////////////////////////////////////////////////////////////////////////////
+
     /**
      * get_llh - updates the provided location with the latest calculated location including absolute altitude
      *  returns true on success (i.e. the EKF knows it's latest position), false on failure
@@ -88,6 +117,9 @@ public:
      */
     float       get_altitude() const;
 
+    float get_of_altitude() const;
+    float get_of_velocity_z() const;
+
     /**
      * getHgtAboveGnd - get latest altitude estimate above ground level in centimetres and validity flag
      * @return
@@ -111,9 +143,30 @@ public:
      */
     float       get_velocity_z() const;
 
+
 private:
     Vector3f _relpos_cm;   // NEU
     Vector3f _velocity_cm; // NEU
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+    Vector2f _of_relpos_cm;
+    Vector2f _of_velocity_cm;
+    Vector2f _of_accel_cmss;
+    bool _optical_flow_nav = false;
+    float _standoff_distance_cm;
+    float _standoff_distance_cm_dot;
+    float _offset_z = 0.0;
+    float _of_z;
+    float _of_z_dot;
+    float _offset_z_dot = 0.0;
+    float _of_ovrhng;
+    bool _in_range=false;
+    Vector2f _nav_adjust;
+    bool _switch = false;
+    bool _flow_health = false;
+    uint32_t _sys_update=0;
+///////////////////////////////////////////////////////////////////////////////////
     float _pos_z_rate;
     struct Location _abspos;
     bool _haveabspos;

@@ -1037,6 +1037,48 @@ bool AP_AHRS_NavEKF::get_filter_status(nav_filter_status &status) const
 
 }
 
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
+
+void AP_AHRS_NavEKF::update_flow_nav(Vector2f &of_ned_cms, float range_cm, float time, float alpha, float n11, float n12, float n21, float n22, float maxvel, float maxdist)
+{
+	_of_ned_vel_cms.x = _of_ned_vel_cms.x*(1.0-alpha)+alpha*of_ned_cms.x;
+	_of_ned_vel_cms.y = _of_ned_vel_cms.y*(1.0-alpha)+alpha*of_ned_cms.y;
+	_of_ned_pos_cm.x += of_ned_cms.x * (time-_tmo) / 1000000.0;
+	_of_ned_pos_cm.y += of_ned_cms.y * (time-_tmo) / 1000000.0;
+	_rng_dist = range_cm;
+	_tmo = time;
+	_n11=n11;
+	_n12=n12;
+	_n21=n21;
+	_n22=n22;
+	_maxvel=maxvel;
+        _maxdist=maxdist;
+}
+
+bool AP_AHRS_NavEKF::get_of_velocity_NED(Vector2f &vecof) const
+{
+	vecof.x=_of_ned_vel_cms.x;
+	vecof.y=_of_ned_vel_cms.y;
+	return true;
+}
+
+bool AP_AHRS_NavEKF::get_of_relative_position_NE(Vector2f &posNEof) const
+{
+	posNEof.x=_of_ned_pos_cm.x;
+	posNEof.y=_of_ned_pos_cm.y;
+	return true;
+}
+
+bool AP_AHRS_NavEKF::get_range_distance(float &dist) const
+{
+	dist = _rng_dist;
+	return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
 // write optical flow data to EKF
 void  AP_AHRS_NavEKF::writeOptFlowMeas(uint8_t &rawFlowQuality, Vector2f &rawFlowRates, Vector2f &rawGyroRates, uint32_t &msecFlowMeas)
 {

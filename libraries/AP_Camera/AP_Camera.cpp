@@ -91,6 +91,14 @@ const AP_Param::GroupInfo AP_Camera::var_info[] = {
     // @Values: 0:TriggerLow,1:TriggerHigh
     // @User: Standard
     AP_GROUPINFO("FEEDBACK_POL",  9, AP_Camera, _feedback_polarity, 1),
+
+    // @Param: MIN_INTERVAL
+    // @DisplayName: Minimum time between photos
+    // @Description: Postpone shooting if previous picture was taken less than preset time(ms) ago.
+    // @User: Standard
+    // @Units: milliseconds
+    // @Range: 0 10000
+    AP_GROUPINFO("MAX_INTERVAL",  10, AP_Camera, _max_interval, 0),
     
     AP_GROUPEND
 };
@@ -278,6 +286,13 @@ void AP_Camera::send_feedback(mavlink_channel_t chan, AP_GPS &gps, const AP_AHRS
 */
 bool AP_Camera::update_location(const struct Location &loc, const AP_AHRS &ahrs)
 {
+    uint32_t tnow = AP_HAL::millis();
+    if ((tnow - _last_photo_time > (unsigned) _max_interval) && (_max_interval > 0)) {
+	_last_location = loc;
+        _last_photo_time = tnow;
+        return true;
+    }
+	
     if (is_zero(_trigg_dist)) {
         return false;
     }
@@ -299,7 +314,6 @@ bool AP_Camera::update_location(const struct Location &loc, const AP_AHRS &ahrs)
         return false;
     }
 
-    uint32_t tnow = AP_HAL::millis();
     if (tnow - _last_photo_time < (unsigned) _min_interval) {
         return false;
     }  else {

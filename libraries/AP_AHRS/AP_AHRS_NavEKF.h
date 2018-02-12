@@ -146,6 +146,41 @@ public:
     // return true if the estimate is valid
     bool get_relative_position_NE(Vector2f &posNE) const;
 
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
+   // updates optical flow velocity in NE ref frame
+   void update_flow_nav(Vector2f &of_ned_cms, float range_cm, float time, float alpha, float n11, float n12, float n21, float n22, float maxvel, float maxdist);
+
+   // return relative velocity in NED frame from optical flow
+   bool get_of_velocity_NED(Vector2f &vecof) const;
+
+   // return relative position in NED frame from optical flow
+   bool get_of_relative_position_NE(Vector2f &posNEof) const;
+
+   float get_of_x_pos(void) {return _of_ned_pos_cm.x;}
+
+   float get_of_y_pos(void) {return _of_ned_pos_cm.y;}
+
+   float get_of_z_pos(void) {return _rng_dist;}
+
+   bool get_range_distance(float &dist) const;
+
+   float get_n11() {return _n11;}
+
+   float get_n12() {return _n12;}
+
+   float get_n21() {return _n21;}
+
+   float get_n22() {return _n22;}
+
+   float get_maxvel() {return _maxvel;}
+
+   float get_maxdist() {return _maxdist;}
+
+///////////////////////////////////////////////////////////////////////////////////
+
     // return the relative position in North/East order
     // return true if the estimate is valid
     bool get_relative_position_D(float &posD) const;
@@ -268,6 +303,20 @@ private:
     Vector3f _gyro_estimate;
     Vector3f _accel_ef_ekf[INS_MAX_INSTANCES];
     Vector3f _accel_ef_ekf_blended;
+///////////////////////////////////////////////////////////////////////////////////
+/// Added for OF NAV //////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+    Vector2f _of_ned_vel_cms;
+    Vector2f _of_ned_pos_cm;
+    float _rng_dist;
+    float _tmo=0.0;
+    float _n11;
+    float _n12;
+    float _n21;
+    float _n22;
+    float _maxvel;
+    float _maxdist;
+///////////////////////////////////////////////////////////////////////////////////
     const uint16_t startup_delay_ms = 1000;
     uint32_t start_time_ms = 0;
     Flags _ekf_flags;

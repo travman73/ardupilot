@@ -45,6 +45,10 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
             success = althold_init(ignore_checks);
             break;
 
+	case ALT_HOLD_AVD:
+	    success = altholdavd_init(ignore_checks);
+	    break;
+
         case AUTO:
             success = auto_init(ignore_checks);
             break;
@@ -180,6 +184,10 @@ void Copter::update_flight_mode()
         case ALT_HOLD:
             althold_run();
             break;
+
+	case ALT_HOLD_AVD:
+	    altholdavd_run();
+	    break;
 
         case AUTO:
             auto_run();
@@ -334,12 +342,12 @@ bool Copter::mode_has_manual_throttle(control_mode_t mode)
 //  arming_from_gcs should be set to true if the arming request comes from the ground station
 bool Copter::mode_allows_arming(control_mode_t mode, bool arming_from_gcs)
 {
-    if (mode_has_manual_throttle(mode) || mode == LOITER || mode == ALT_HOLD || mode == POSHOLD || mode == DRIFT || mode == SPORT || mode == THROW || (arming_from_gcs && (mode == GUIDED || mode == GUIDED_NOGPS))) {
+    if (mode_has_manual_throttle(mode) || mode == LOITER || mode == ALT_HOLD_AVD || mode == ALT_HOLD || mode == POSHOLD || mode == DRIFT || mode == SPORT || mode == THROW || (arming_from_gcs && (mode == GUIDED || mode == GUIDED_NOGPS))) {
         return true;
     }
     return false;
 }
-
+//this
 // notify_flight_mode - sets notify object based on flight mode.  Only used for OreoLED notify device
 void Copter::notify_flight_mode(control_mode_t mode)
 {
@@ -376,6 +384,9 @@ void Copter::print_flight_mode(AP_HAL::BetterStream *port, uint8_t mode)
     case ALT_HOLD:
         port->print("ALT_HOLD");
         break;
+    case ALT_HOLD_AVD:
+	port->print("ALT_HOLD_AVD");
+	break;
     case AUTO:
         port->print("AUTO");
         break;

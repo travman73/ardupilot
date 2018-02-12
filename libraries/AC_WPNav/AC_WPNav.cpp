@@ -206,10 +206,52 @@ void AC_WPNav::init_loiter_target()
     _pilot_accel_rgt_cms = 0;
 }
 
+/// init_of_loiter_target - initialize's loiter position and feed-forward velocity from current pos and velocity
+void AC_WPNav::init_of_loiter_target()
+{
+    const Vector2f& curr_pos = _inav.get_of_position();
+    const Vector2f& curr_vel = _inav.get_of_velocity();
+
+    // initialise ekf position reset check
+    //init_ekf_position_reset();
+
+    // initialise position controller
+    _pos_control.init_xy_controller();
+
+    // initialise pos controller speed and acceleration
+    _pos_control.set_speed_xy(_loiter_speed_cms);
+    _pos_control.set_accel_xy(_loiter_accel_cmss);
+    _pos_control.set_jerk_xy(_loiter_jerk_max_cmsss);
+
+    // set target position
+    _pos_control.set_xy_target(curr_pos.x, curr_pos.y);
+
+    // move current vehicle velocity into feed forward velocity
+    _pos_control.set_desired_velocity_xy(curr_vel.x, curr_vel.y);
+
+    // initialise desired accel and add fake wind
+    _loiter_desired_accel.x = (_loiter_accel_cmss)*curr_vel.x/_loiter_speed_cms;
+    _loiter_desired_accel.y = (_loiter_accel_cmss)*curr_vel.y/_loiter_speed_cms;
+
+    // initialise pilot input
+    _pilot_accel_fwd_cms = 0;
+    _pilot_accel_rgt_cms = 0;
+}
+
 /// loiter_soften_for_landing - reduce response for landing
 void AC_WPNav::loiter_soften_for_landing()
 {
     const Vector3f& curr_pos = _inav.get_position();
+
+    // set target position to current position
+    _pos_control.set_xy_target(curr_pos.x, curr_pos.y);
+    _pos_control.freeze_ff_xy();
+}
+
+/// of_loiter_soften_for_landing - reduce response for landing
+void AC_WPNav::of_loiter_soften_for_landing()
+{
+    const Vector2f& curr_pos = _inav.get_of_position();
 
     // set target position to current position
     _pos_control.set_xy_target(curr_pos.x, curr_pos.y);
@@ -340,6 +382,33 @@ void AC_WPNav::update_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler)
 
         calc_loiter_desired_velocity(dt,ekfGndSpdLimit);
         _pos_control.update_xy_controller(AC_PosControl::XY_MODE_POS_LIMITED_AND_VEL_FF, ekfNavVelGainScaler, true);
+    }
+}
+
+// update_of_loiter - run the loiter controller - gets called at 100hz (APM) or 400hz (PX4)
+void AC_WPNav::update_of_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler, float roll_rc, float pitch_rc)
+{
+    // calculate dt
+    float dt = _pos_control.time_since_last_xy_update();
+
+    // run at poscontrol update rate.
+    // TODO: run on user input to reduce latency, maybe if (user_input || dt >= _pos_control.get_dt_xy())
+    if (dt >= _pos_control.get_dt_xy()) {
+        // sanity check dt
+        if (dt >= 0.2f) {
+            dt = 0.0f;
+        }
+        // initialise ekf position reset check
+        //check_for_ekf_position_reset();
+	of_check_for_ekf_z_reset(); //
+
+        // initialise pos controller speed and acceleration
+        _pos_control.set_speed_xy(_loiter_speed_cms);
+        _pos_control.set_accel_xy(_loiter_accel_cmss);
+        _pos_control.set_jerk_xy(_loiter_jerk_max_cmsss);
+
+        calc_loiter_desired_velocity(dt,ekfGndSpdLimit);
+        _pos_control.update_xy_controller_of(AC_PosControl::XY_MODE_POS_LIMITED_AND_VEL_FF, ekfNavVelGainScaler, true, roll_rc, pitch_rc);
     }
 }
 
@@ -1275,6 +1344,30 @@ void AC_WPNav::check_for_ekf_position_reset()
     uint32_t reset_ms = _ahrs.getLastPosNorthEastReset(pos_shift);
     if (reset_ms != _loiter_ekf_pos_reset_ms) {
         _pos_control.shift_pos_xy_target(pos_shift.x * 100.0f, pos_shift.y * 100.0f);
+        _loiter_ekf_pos_reset_ms = reset_ms;
+    }
+}
+
+/// check for ekf position z reset and reset desired altitude
+void AC_WPNav::check_for_ekf_z_reset()
+{
+    // check for position shift
+    Vector2f pos_shift;
+    uint32_t reset_ms = _ahrs.getLastPosNorthEastReset(pos_shift);
+    if (reset_ms != _loiter_ekf_pos_reset_ms) {
+        _pos_control.set_alt_target_to_current_alt();
+        _loiter_ekf_pos_reset_ms = reset_ms;
+    }
+}
+
+/// check for ekf position z reset and reset desired altitude
+void AC_WPNav::of_check_for_ekf_z_reset()
+{
+    // check for position shift
+    Vector2f pos_shift;
+    uint32_t reset_ms = _ahrs.getLastPosNorthEastReset(pos_shift);
+    if (reset_ms != _loiter_ekf_pos_reset_ms) {
+        _pos_control.set_alt_target_to_current_alt();
         _loiter_ekf_pos_reset_ms = reset_ms;
     }
 }

@@ -35,6 +35,93 @@ const AP_Param::GroupInfo OpticalFlow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_ORIENT_YAW", 3,  OpticalFlow,    _yawAngle_cd,   0),
 
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow override
+    // @Description: Setting this to Enabled(1) will enable optical flow override. Setting this to Disabled(0) will disable optical flow
+    // @Values: 0:Disabled, 1:Override
+    // @User: Standard
+    AP_GROUPINFO("_OVR", 4,  OpticalFlow,    _ovr,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha ascent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the ascending direction
+    // @Range: 0 +1
+    // @Increment: 0.0001
+    // @User: Standard
+    AP_GROUPINFO("_ALPHA_A", 5,  OpticalFlow,    _asc_alpha,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha descent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the descending direction
+    // @Range: 0 +1
+    // @Increment: 0.0001
+    // @User: Standard
+    AP_GROUPINFO("_ALPHA_D", 6,  OpticalFlow,    _des_alpha,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha ascent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the ascending direction
+    // @Range: 0 +4000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("_SLOW_DN", 7,  OpticalFlow,    _slow_dist_cm,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha descent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the descending direction
+    // @Range: 0 +4000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("_OBS_OFF", 8,  OpticalFlow,    _obs_offset_cm,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha ascent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the ascending direction
+    // @Range: 0 +1
+    // @Increment: 0.0001
+    // @User: Standard
+    AP_GROUPINFO("_ALPHA_A2", 9,  OpticalFlow,    _asc_alpha2,   0),
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha descent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the descending direction
+    // @Range: 0 +1
+    // @Increment: 0.0001
+    // @User: Standard
+    AP_GROUPINFO("_ALPHA_D2", 10,  OpticalFlow,    _des_alpha2,   0),
+
+
+    // @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha descent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the descending direction
+    // @Range: 0 +4000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("_DEADBND", 11,  OpticalFlow,    _deadbnd,   0),
+
+// @Param: _ENABLE
+    // @DisplayName: Optical flow altidude alpha descent
+    // @Description: Controls the filtering of distance rangefinder for optical flow in the descending direction
+    // @Range: 0 +1
+    // @Increment: 0.0001
+    // @User: Standard
+    AP_GROUPINFO("_VEL_ALPH", 12,  OpticalFlow,    _opt_vel_alpha,   0),
+    AP_GROUPINFO("_n11", 13,  OpticalFlow,    _n11,   1.0),
+    AP_GROUPINFO("_n12", 14,  OpticalFlow,    _n12,   0.0),
+    AP_GROUPINFO("_n21", 15,  OpticalFlow,    _n21,   0.0),
+    AP_GROUPINFO("_n22", 16,  OpticalFlow,    _n22,   1.0),
+    AP_GROUPINFO("_offx", 17,  OpticalFlow,    _offset_x,   0.0),
+    AP_GROUPINFO("_offy", 18,  OpticalFlow,    _offset_y,   0.0),
+    AP_GROUPINFO("_offa", 19,  OpticalFlow,    _offset_a,   0.0),
+    AP_GROUPINFO("_offb", 20,  OpticalFlow,    _offset_b,   0.0),
+    AP_GROUPINFO("_offc", 21,  OpticalFlow,    _offset_c,   0.0),
+    AP_GROUPINFO("_en_ac", 22,  OpticalFlow,    _en_ac,   0.0),
+    AP_GROUPINFO("_maxvel", 23,  OpticalFlow,    _velmax,   1600.0),
+    AP_GROUPINFO("_maxdist", 24,  OpticalFlow,    _dist,   5000.0),
+    AP_GROUPINFO("_focal", 25,  OpticalFlow,    _focal,   1.0),
+    AP_GROUPINFO("_gyrodb", 26,  OpticalFlow,    _gdb,   0.0),
+    AP_GROUPINFO("_flowdb", 27,  OpticalFlow,    _fdb,   0.0),
+
     AP_GROUPEND
 };
 
@@ -72,6 +159,7 @@ void OpticalFlow::init(void)
         backend->init();
     } else {
         _enabled = 0;
+	_ovr =0;
     }
 }
 

@@ -332,6 +332,24 @@ void AC_PosControl::update_z_controller()
     pos_to_rate_z();
 }
 
+/// update_z_controller - fly to altitude in cm above home
+void AC_PosControl::update_of_z_controller()
+{
+    // check time since last cast
+    uint32_t now = AP_HAL::millis();
+    if (now - _last_update_z_ms > POSCONTROL_ACTIVE_TIMEOUT_MS) {
+        _flags.reset_rate_to_accel_z = true;
+        _flags.reset_accel_to_throttle = true;
+    }
+    _last_update_z_ms = now;
+
+    // check if leash lengths need to be recalculated
+    calc_leash_length_z();
+
+    // call position controller
+    of_pos_to_rate_z();
+}
+
 /// calc_leash_length - calculates the vertical leash lengths from maximum speed, acceleration
 ///     called by pos_to_rate_z if z-axis speed or accelerations are changed
 void AC_PosControl::calc_leash_length_z()
@@ -394,6 +412,58 @@ void AC_PosControl::pos_to_rate_z()
     rate_to_accel_z();
 }
 
+// pos_to_rate_z - position to rate controller for Z axis
+// calculates desired rate in earth-frame z axis and passes to rate controller
+// vel_up_max, vel_down_max should have already been set before calling this method
+void AC_PosControl::of_pos_to_rate_z()
+{
+    float curr_alt = _inav.get_of_altitude();
+
+    // clear position limit flags
+    _limit.pos_up = false;
+    _limit.pos_down = false;
+
+    // calculate altitude error
+    _pos_error.z = _pos_target.z - curr_alt;
+
+    // do not let target altitude get too far from current altitude
+    if (_pos_error.z > _leash_up_z) {
+        _pos_target.z = curr_alt + _leash_up_z;
+        _pos_error.z = _leash_up_z;
+        _limit.pos_up = true;
+    }
+    if (_pos_error.z < -_leash_down_z) {
+        _pos_target.z = curr_alt - _leash_down_z;
+        _pos_error.z = -_leash_down_z;
+        _limit.pos_down = true;
+    }
+
+    // calculate _vel_target.z using from _pos_error.z using sqrt controller
+    _vel_target.z = AC_AttitudeControl::sqrt_controller(_pos_error.z, _p_pos_z.kP(), _accel_z_cms);
+
+    // check speed limits
+    // To-Do: check these speed limits here or in the pos->rate controller
+    _limit.vel_up = false;
+    _limit.vel_down = false;
+    if (_vel_target.z < _speed_down_cms) {
+        _vel_target.z = _speed_down_cms;
+        _limit.vel_down = true;
+    }
+    if (_vel_target.z > _speed_up_cms) {
+        _vel_target.z = _speed_up_cms;
+        _limit.vel_up = true;
+    }
+
+    // add feed forward component
+    if (_flags.use_desvel_ff_z) {
+        _vel_target.z += _vel_desired.z;
+    }
+
+    // call rate based throttle controller which will update accel based throttle controller targets
+    of_rate_to_accel_z();
+}
+
+
 // rate_to_accel_z - calculates desired accel required to achieve the velocity target
 // calculates desired acceleration and calls accel throttle controller
 void AC_PosControl::rate_to_accel_z()
@@ -441,6 +511,55 @@ void AC_PosControl::rate_to_accel_z()
     // set target for accel based throttle controller
     accel_to_throttle(_accel_target.z);
 }
+
+// rate_to_accel_z - calculates desired accel required to achieve the velocity target
+// calculates desired acceleration and calls accel throttle controller
+void AC_PosControl::of_rate_to_accel_z()
+{
+    float curr_vel = _inav.get_of_velocity_z();
+    float p;                                // used to capture pid values for logging
+
+    // reset last velocity target to current target
+    if (_flags.reset_rate_to_accel_z) {
+        _vel_last.z = _vel_target.z;
+    }
+
+    // feed forward desired acceleration calculation
+    if (_dt > 0.0f) {
+    	if (!_flags.freeze_ff_z) {
+    		_accel_feedforward.z = (_vel_target.z - _vel_last.z)/_dt;
+        } else {
+    		// stop the feed forward being calculated during a known discontinuity
+    		_flags.freeze_ff_z = false;
+    	}
+    } else {
+    	_accel_feedforward.z = 0.0f;
+    }
+
+    // store this iteration's velocities for the next iteration
+    _vel_last.z = _vel_target.z;
+
+    // reset velocity error and filter if this controller has just been engaged
+    if (_flags.reset_rate_to_accel_z) {
+        // Reset Filter
+        _vel_error.z = 0;
+        _vel_error_filter.reset(0);
+        _flags.reset_rate_to_accel_z = false;
+    } else {
+        // calculate rate error and filter with cut off frequency of 2 Hz
+        _vel_error.z = _vel_error_filter.apply(_vel_target.z - curr_vel, _dt);
+    }
+
+    // calculate p
+    p = _p_vel_z.kP() * _vel_error.z;
+
+    // consolidate and constrain target acceleration
+    _accel_target.z = _accel_feedforward.z + p;
+
+    // set target for accel based throttle controller
+    accel_to_throttle(_accel_target.z);
+}
+
 
 // accel_to_throttle - alt hold's acceleration controller
 // calculates a desired throttle which is sent directly to the motors
@@ -673,6 +792,63 @@ void AC_PosControl::update_xy_controller(xy_mode mode, float ekfNavVelGainScaler
     accel_to_lean_angles(dt, ekfNavVelGainScaler, use_althold_lean_angle);
 }
 
+/// update_xy_controller_of - run the horizontal position controller - should be called at 100hz or higher
+void AC_PosControl::update_xy_controller_of(xy_mode mode, float ekfNavVelGainScaler, bool use_althold_lean_angle, float roll_rc, float pitch_rc)
+{
+    // compute dt
+    uint32_t now = AP_HAL::millis();
+    float dt = (now - _last_update_xy_ms) / 1000.0f;
+    _last_update_xy_ms = now;
+
+    // sanity check dt - expect to be called faster than ~5hz
+    if (dt > POSCONTROL_ACTIVE_TIMEOUT_MS*1.0e-3f) {
+        dt = 0.0f;
+    }
+
+    if(!_inav.flownav()) {_of_nav_engage = false;}
+	
+	if(_inav.flownav() && !_of_nav_engage && !_just_switched) {
+		_of_nav_switch= now;
+		_of_nav_engage = false;
+		_just_switched = true;
+	}
+
+	else if(_inav.flownav() && !_of_nav_engage) {
+		if((now-_of_nav_switch) >= 2000) {
+			_of_nav_engage = true;
+			_just_switched = false;
+			const Vector2f& curr_posf = _inav.get_of_position();
+    			const Vector2f& curr_velf = _inav.get_of_velocity();
+    			set_xy_target(curr_posf.x, curr_posf.y);
+			set_desired_velocity_xy(curr_velf.x, curr_velf.y);
+		}
+		else { _of_nav_engage = false;}
+	}
+
+	if(_of_nav_engage) {
+
+	    // check if xy leash needs to be recalculated
+	    calc_leash_length_xy();
+
+	    // translate any adjustments from pilot to loiter target
+	    desired_vel_to_pos(dt);
+
+	    // run position controller's position error to desired velocity step
+	    pos_to_rate_xy_of(mode, dt, ekfNavVelGainScaler);
+	
+	    // run position controller's velocity to acceleration step
+	    rate_to_accel_xy_of(dt, ekfNavVelGainScaler);
+	
+	    // run position controller's acceleration to lean angle step
+	    accel_to_lean_angles(dt, ekfNavVelGainScaler, use_althold_lean_angle);
+	}
+
+	else {
+		_roll_target = roll_rc;
+		_pitch_target = pitch_rc;
+	}
+}
+
 float AC_PosControl::time_since_last_xy_update() const
 {
     uint32_t now = AP_HAL::millis();
@@ -766,6 +942,19 @@ void AC_PosControl::calc_leash_length_xy()
         _flags.recalc_leash_xy = false;
     }
 }
+
+void AC_PosControl::check_for_nav_switch()
+{
+    if(_inav.nav_switch() != _last_reset_ms)	{
+	_last_reset_ms = _inav.nav_switch();
+	Vector2f pos_shift = _inav.get_switch();
+	Vector2f change_shift;
+	change_shift.x = pos_shift.x-_last_target_adj.x;
+	change_shift.y = pos_shift.y-_last_target_adj.y;
+	shift_pos_xy_target(change_shift.x,change_shift.y);
+    }
+}
+	
 
 /// desired_vel_to_pos - move position target using desired velocities
 void AC_PosControl::desired_vel_to_pos(float nav_dt)
@@ -861,6 +1050,84 @@ void AC_PosControl::pos_to_rate_xy(xy_mode mode, float dt, float ekfNavVelGainSc
     }
 }
 
+/// pos_to_rate_xy_of - horizontal position error to velocity controller
+///     converts position (_pos_target) to target velocity (_vel_target)
+///     when use_desired_rate is set to true:
+///         desired velocity (_vel_desired) is combined into final target velocity and
+///         velocity due to position error is reduce to a maximum of 1m/s
+void AC_PosControl::pos_to_rate_xy_of(xy_mode mode, float dt, float ekfNavVelGainScaler)
+{
+    Vector2f curr_pos = _inav.get_of_position();
+    float linear_distance;      // the distance we swap between linear and sqrt velocity response
+    float kP = ekfNavVelGainScaler * _p_pos_xy.kP(); // scale gains to compensate for noisy optical flow measurement in the EKF
+
+    // avoid divide by zero
+    if (kP <= 0.0f) {
+        _vel_target.x = 0.0f;
+        _vel_target.y = 0.0f;
+    }else{
+        // calculate distance error
+        _pos_error.x = _pos_target.x - curr_pos.x;
+        _pos_error.y = _pos_target.y - curr_pos.y;
+
+        // constrain target position to within reasonable distance of current location
+        _distance_to_target = norm(_pos_error.x, _pos_error.y);
+        if (_distance_to_target > _leash && _distance_to_target > 0.0f) {
+            _pos_target.x = curr_pos.x + _leash * _pos_error.x/_distance_to_target;
+            _pos_target.y = curr_pos.y + _leash * _pos_error.y/_distance_to_target;
+            // re-calculate distance error
+            _pos_error.x = _pos_target.x - curr_pos.x;
+            _pos_error.y = _pos_target.y - curr_pos.y;
+            _distance_to_target = _leash;
+        }
+
+        // calculate the distance at which we swap between linear and sqrt velocity response
+        linear_distance = _accel_cms/(2.0f*kP*kP);
+
+        if (_distance_to_target > 2.0f*linear_distance) {
+            // velocity response grows with the square root of the distance
+            float vel_sqrt = safe_sqrt(2.0f*_accel_cms*(_distance_to_target-linear_distance));
+            _vel_target.x = vel_sqrt * _pos_error.x/_distance_to_target;
+            _vel_target.y = vel_sqrt * _pos_error.y/_distance_to_target;
+        }else{
+            // velocity response grows linearly with the distance
+            _vel_target.x = kP * _pos_error.x;
+            _vel_target.y = kP * _pos_error.y;
+        }
+
+        if (mode == XY_MODE_POS_LIMITED_AND_VEL_FF) {
+            // this mode is for loiter - rate-limiting the position correction
+            // allows the pilot to always override the position correction in
+            // the event of a disturbance
+
+            // scale velocity within limit
+            float vel_total = norm(_vel_target.x, _vel_target.y);
+            if (vel_total > POSCONTROL_VEL_XY_MAX_FROM_POS_ERR) {
+                _vel_target.x = POSCONTROL_VEL_XY_MAX_FROM_POS_ERR * _vel_target.x/vel_total;
+                _vel_target.y = POSCONTROL_VEL_XY_MAX_FROM_POS_ERR * _vel_target.y/vel_total;
+            }
+
+            // add velocity feed-forward
+            _vel_target.x += _vel_desired.x;
+            _vel_target.y += _vel_desired.y;
+        } else {
+            if (mode == XY_MODE_POS_AND_VEL_FF) {
+                // add velocity feed-forward
+                _vel_target.x += _vel_desired.x;
+                _vel_target.y += _vel_desired.y;
+            }
+
+            // scale velocity within speed limit
+            float vel_total = norm(_vel_target.x, _vel_target.y);
+            if (vel_total > _speed_cms) {
+                _vel_target.x = _speed_cms * _vel_target.x/vel_total;
+                _vel_target.y = _speed_cms * _vel_target.y/vel_total;
+            }
+        }
+    }
+}
+
+
 /// rate_to_accel_xy - horizontal desired rate to desired acceleration
 ///    converts desired velocities in lat/lon directions to accelerations in lat/lon frame
 void AC_PosControl::rate_to_accel_xy(float dt, float ekfNavVelGainScaler)
@@ -921,6 +1188,68 @@ void AC_PosControl::rate_to_accel_xy(float dt, float ekfNavVelGainScaler)
     _accel_target.x = _accel_feedforward.x + (vel_xy_p.x + vel_xy_i.x) * ekfNavVelGainScaler;
     _accel_target.y = _accel_feedforward.y + (vel_xy_p.y + vel_xy_i.y) * ekfNavVelGainScaler;
 }
+
+/// rate_to_accel_xy_of - horizontal desired rate to desired acceleration
+///    converts desired velocities in lat/lon directions to accelerations in lat/lon frame
+void AC_PosControl::rate_to_accel_xy_of(float dt, float ekfNavVelGainScaler)
+{
+    Vector2f vel_xy_p, vel_xy_i;
+
+    // reset last velocity target to current target
+    if (_flags.reset_rate_to_accel_xy) {
+        _vel_last.x = _vel_target.x;
+        _vel_last.y = _vel_target.y;
+        _flags.reset_rate_to_accel_xy = false;
+    }
+
+    // check if vehicle velocity is being overridden
+    if (_flags.vehicle_horiz_vel_override) {
+        _flags.vehicle_horiz_vel_override = false;
+    } else {
+        _vehicle_horiz_vel.x = _inav.get_of_velocity().x;
+        _vehicle_horiz_vel.y = _inav.get_of_velocity().y;
+    }
+
+    // feed forward desired acceleration calculation
+    if (dt > 0.0f) {
+    	if (!_flags.freeze_ff_xy) {
+    		_accel_feedforward.x = (_vel_target.x - _vel_last.x)/dt;
+    		_accel_feedforward.y = (_vel_target.y - _vel_last.y)/dt;
+        } else {
+    		// stop the feed forward being calculated during a known discontinuity
+    		_flags.freeze_ff_xy = false;
+    	}
+    } else {
+    	_accel_feedforward.x = 0.0f;
+    	_accel_feedforward.y = 0.0f;
+    }
+
+    // store this iteration's velocities for the next iteration
+    _vel_last.x = _vel_target.x;
+    _vel_last.y = _vel_target.y;
+
+    // calculate velocity error
+    _vel_error.x = _vel_target.x - _vehicle_horiz_vel.x;
+    _vel_error.y = _vel_target.y - _vehicle_horiz_vel.y;
+
+    // call pi controller
+    _pi_vel_xy.set_input(_vel_error);
+
+    // get p
+    vel_xy_p = _pi_vel_xy.get_p();
+
+    // update i term if we have not hit the accel or throttle limits OR the i term will reduce
+    if ((!_limit.accel_xy && !_motors.limit.throttle_upper)) {
+        vel_xy_i = _pi_vel_xy.get_i();
+    } else {
+        vel_xy_i = _pi_vel_xy.get_i_shrink();
+    }
+
+    // combine feed forward accel with PID output from velocity error and scale PID output to compensate for optical flow measurement induced EKF noise
+    _accel_target.x = _accel_feedforward.x + (vel_xy_p.x + vel_xy_i.x) * ekfNavVelGainScaler;
+    _accel_target.y = _accel_feedforward.y + (vel_xy_p.y + vel_xy_i.y) * ekfNavVelGainScaler;
+}
+
 
 /// accel_to_lean_angles - horizontal desired acceleration to lean angles
 ///    converts desired accelerations provided in lat/lon frame to roll/pitch angles

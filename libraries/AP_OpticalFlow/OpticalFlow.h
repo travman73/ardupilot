@@ -39,6 +39,41 @@ public:
     // enabled - returns true if optical flow is enabled
     bool enabled() const { return _enabled; }
 
+    float n11() const { return _n11; }
+    float n12() const { return _n12; }
+    float n21() const { return _n21; }
+    float n22() const { return _n22; }
+    float maxvel() const { return _velmax; }
+    float dist() const { return _dist; }
+    float offsetx() const { return _offset_x; }
+    float offsety() const { return _offset_y; }
+    float offseta() const { return _offset_a; }
+    float offsetb() const { return _offset_b; }
+    float offsetc() const { return _offset_c; }
+    float focal() const { return _focal;}
+    float gyrodb() const { return _gdb;}
+    float flowdb() const { return _fdb;}
+
+    //override - use optical flow, but not for EKF
+    bool ovr() const { return _ovr; }
+
+    //return alpha for ascending
+    float alpha_a() const {return _asc_alpha; }
+
+    //return alpha for descending
+    float alpha_d() const {return _des_alpha; }
+
+    //return alpha for ascending
+    float alpha_a2() const {return _asc_alpha2; }
+
+    //return alpha for descending
+    float alpha_d2() const {return _des_alpha2; }
+
+    float vel_alpha() const {return _opt_vel_alpha; }
+
+    float en_ac() const {return _en_ac; }
+
+
     // healthy - return true if the sensor is healthy
     bool healthy() const { return backend != NULL && _flags.healthy; }
 
@@ -53,6 +88,24 @@ public:
 
     // velocity - returns the velocity in m/s
     const Vector2f& bodyRate() const { return _state.bodyRate; }
+
+    //flowrate x
+    float flowRatex() const { return _state.flowRate.x; }
+
+    //flowrate y
+    float flowRatey() const { return _state.flowRate.y; }
+
+    //bodyrate x
+    float bodyRatex() const { return _state.bodyRate.x; }
+
+    //bodyrate y
+    float bodyRatey() const { return _state.bodyRate.y; }
+
+    //added
+    float get_slow_down_cm() const { return _slow_dist_cm; }
+    float get_obstacle_offset_cm() const { return _obs_offset_cm; }
+    float rng_deadband() const { return _deadbnd; }
+
 
     // device_id - returns device id
     uint8_t device_id() const { return _state.device_id; }
@@ -85,8 +138,30 @@ private:
     AP_Int16 _flowScalerX;          // X axis flow scale factor correction - parts per thousand
     AP_Int16 _flowScalerY;          // Y axis flow scale factor correction - parts per thousand
     AP_Int16 _yawAngle_cd;          // yaw angle of sensor X axis with respect to vehicle X axis - centi degrees
-
-
+    AP_Int8 _ovr;		    //enable/disable override flag
+    AP_Float _asc_alpha;	    //alpha for ascending altitude filter
+    AP_Float _des_alpha;	    //alpha for descending altitude filter
+    AP_Float _asc_alpha2;	    //alpha for ascending altitude filter
+    AP_Float _des_alpha2;	    //alpha for descending altitude filter
+    AP_Float _deadbnd;	            //deadband crossover for altitude filter
+    AP_Float _slow_dist_cm;
+    AP_Float _obs_offset_cm;
+    AP_Float _opt_vel_alpha;
+    AP_Float _n11;
+    AP_Float _n12;
+    AP_Float _n21;
+    AP_Float _n22;
+    AP_Float _dist;
+    AP_Float _velmax;
+    AP_Float _offset_x;
+    AP_Float _offset_y;
+    AP_Float _offset_a;
+    AP_Float _offset_b;
+    AP_Float _offset_c;
+    AP_Float _en_ac;
+    AP_Float _focal;
+    AP_Float _gdb;
+    AP_Float _fdb;
     // state filled in by backend
     struct OpticalFlow_state _state;
 
