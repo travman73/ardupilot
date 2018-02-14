@@ -16,6 +16,15 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ACC_XY_FILT", 1, AC_PosControl, _accel_xy_filt_hz, POSCONTROL_ACCEL_FILTER_HZ),
 
+    // @Param: _ACC_XY_FILT
+    // @DisplayName: XY Acceleration filter cutoff frequency
+    // @Description: Lower values will slow the response of the navigation controller and reduce twitchiness
+    // @Units: Hz
+    // @Range: 0.5 5
+    // @Increment: 0.1
+    // @User: Advanced
+    AP_GROUPINFO("_RISE_GAIN", 2, AC_PosControl, _rise_gain, 0.0),
+
     AP_GROUPEND
 };
 
@@ -1179,7 +1188,7 @@ void AC_PosControl::rate_to_accel_xy(float dt, float ekfNavVelGainScaler)
 
     // update i term if we have not hit the accel or throttle limits OR the i term will reduce
     if ((!_limit.accel_xy && !_motors.limit.throttle_upper)) {
-        vel_xy_i = _pi_vel_xy.get_i();
+        vel_xy_i = _pi_vel_xy.get_i(_rise_gain);
     } else {
         vel_xy_i = _pi_vel_xy.get_i_shrink();
     }

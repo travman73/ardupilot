@@ -286,6 +286,9 @@ public:
     // get_leash_xy - returns horizontal leash length in cm
     float get_leash_xy() const { return _leash; }
 
+    // get_rise - returns rise controller gain
+    float get_rise_xy() const { return _rise_gain; }
+
     /// get_pos_xy_kP - returns xy position controller's kP gain
     float get_pos_xy_kP() const { return _p_pos_xy.kP(); }
 
@@ -399,6 +402,7 @@ private:
 
     // parameters
     AP_Float    _accel_xy_filt_hz;      // XY acceleration filter cutoff frequency
+    AP_Float    _rise_gain;		// Rise controller gain for pi_vel_xy controller
 
     // internal variables
     float       _dt;                    // time difference (in seconds) between calls from the main program

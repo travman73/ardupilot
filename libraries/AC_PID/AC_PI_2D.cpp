@@ -104,6 +104,23 @@ Vector2f AC_PI_2D::get_i()
     return Vector2f();
 }
 
+Vector2f AC_PI_2D::get_i(float risegain)
+{
+    if(!is_zero(_ki) && !is_zero(_dt)) {
+        _integrator += (_input * _ki) * _dt;
+	if(_input.x > 0.0) {_integrator.x += risegain;}
+	else if(_input.x < 0.0) {_integrator.x -= risegain;}
+	if(_input.y > 0.0) {_integrator.y += risegain;}
+	else if(_input.y < 0.0) {_integrator.y -= risegain;}
+        float integrator_length = _integrator.length();
+        if ((integrator_length > _imax) && (integrator_length > 0)) {
+            _integrator *= (_imax / integrator_length);
+        }
+        return _integrator;
+    }
+    return Vector2f();
+}
+
 // get_i_shrink - get_i but do not allow integrator to grow in length (it may shrink)
 Vector2f AC_PI_2D::get_i_shrink()
 {
