@@ -30,6 +30,8 @@ public:
 
     void set_center_heading(float heading, float distance);
 
+    void set_center_xyz(float centx, float centy, float centz);
+
     void set_center_only(float heading, float distance);
 
     /// set_circle_center in cm from home

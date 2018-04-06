@@ -20,7 +20,7 @@ bool Copter::circle_init(bool ignore_checks)
         return false;
     }
 #endif
-
+    yaw_time = 0.0;
     if (position_ok() || ignore_checks) {
 
 	circle_pilot_yaw_override = false;
@@ -200,7 +200,7 @@ void Copter::circle_run()
 		pole_detected = pole_detection(G_Dt, 15.0, 90.0);
 		yaw_cmd = circle_nav.get_yaw() + heading_add;
 		if(pole_detected) {
-			circle_nav.set_center_heading(heading_pole,min_distance);
+			circle_nav.set_center_xyz(cent_pos.x, cent_pos.y, cent_pos.z);
 			pole_ascend = true;
 			altitude_start=inertial_nav.get_altitude();
 			pole_leash_altitude = pole_height+altitude_start;

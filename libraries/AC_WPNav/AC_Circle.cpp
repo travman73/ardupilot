@@ -129,6 +129,22 @@ void AC_Circle::set_center_heading(float heading, float distance)
     _angle = wrap_PI(heading-M_PI);
 }
 
+/// init - initialise circle controller setting center using stopping point and projecting out based on the copter's heading
+///     caller should set the position controller's x,y and z speeds and accelerations before calling this
+void AC_Circle::set_center_xyz(float centx, float centy, float centz)
+{
+    // set circle center to circle_radius ahead of stopping point
+    _center.x = centx;
+    _center.y = centy;
+    _center.z = centz;
+
+    // calculate velocities
+    calc_velocities(true);
+
+    init_start_angle(false);
+}
+
+
 void AC_Circle::set_center_only(float heading, float distance)
 {
     // get stopping point

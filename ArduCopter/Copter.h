@@ -475,6 +475,8 @@ private:
     bool pole_end = false;
     float altitude_start = 0.0;
     float pole_leash_altitude = 0.0;
+    Vector3f reff_pos;
+    Vector3f cent_pos;
 
     // filtered pilot's throttle input used to cancel landing if throttle held high
     LowPassFilterFloat rc_throttle_control_in_filter;

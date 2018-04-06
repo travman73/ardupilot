@@ -492,7 +492,7 @@ float Copter::horizontal_obstacle_avoid()
 }
 
 bool Copter::pole_detection(float dt, float sweep_time, float sweep_angle) {
-	int16_t dist = rangefinder.distance_cm();
+	float dist = (float)rangefinder.distance_cm();
 	sweep_time=sweep_time/1.82;
 	sweep_angle=sweep_angle/2.0;
 	if(yaw_time >= (sweep_time*1.82)) {
@@ -519,16 +519,26 @@ bool Copter::pole_detection(float dt, float sweep_time, float sweep_angle) {
 	}
 */
 	else if(yaw_time == 0.0 ) {
+		reff_pos = inertial_nav.get_position();
 		min_distance= dist;
 		heading_pole=ahrs.yaw;
+		cent_pos.x = reff_pos.x + dist * ahrs.cos_yaw();
+		cent_pos.y = reff_pos.y + dist * ahrs.sin_yaw();
+		cent_pos.z = reff_pos.z;
 		yaw_time+=dt;
 		heading_add = -50.0*sweep_angle+sweep_angle*50.0*cosf((1.0/sweep_time)*yaw_time*6.28);
 		return false;
 	}
 	else {
-		if (min_distance > dist) {
-			min_distance = dist;
-			heading_pole = ahrs.yaw;
+		Vector3f temp_posi = inertial_nav.get_position();
+		float candx = temp_posi.x + dist * ahrs.cos_yaw();
+		float candy = temp_posi.y + dist * ahrs.sin_yaw();
+		float norm_dist = safe_sqrt(((candx-reff_pos.x)*(candx-reff_pos.x))+((candy-reff_pos.y)*(candy-reff_pos.y)));
+		if (min_distance > norm_dist) {
+			min_distance = norm_dist;
+			cent_pos.x = candx;
+			cent_pos.y = candy;
+			cent_pos.z = temp_posi.z;
 		}
 		yaw_time+=dt;
 		if(yaw_time < (0.75*sweep_time)) {
