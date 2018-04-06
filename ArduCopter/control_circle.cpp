@@ -77,7 +77,6 @@ void Copter::circle_run()
     float pole_distance=0.0;
     float pole_min_offset=circle_nav.min_off();
     float pole_climb_rate=circle_nav.clmb_rate();
-    float pole_descent_rate=circle_nav.descent_rate();
     float turn_velocity=circle_nav.turn_vel();
     float pole_height=circle_nav.pole_height();
     float obs_dist_fwd=(float)rangefinder.distance_cm(1);
@@ -212,20 +211,14 @@ void Copter::circle_run()
 	}
 	else if (pole_rotate == true) {
 		if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
-		circle_nav.update((turn_velocity+turn_velocity*-2.0*roll_percent),0.0);
+		if (pole_rotate_counter == 2) {
+			if(obs_dist_blw <= 250) {target_climb_rate += pole_climb_rate;}
+		}
+		if((obs_dist_blw > 200) || (pole_rotate_counter != 2)) {
+			circle_nav.update(pole_rotation_alg(pole_rotate_counter,circle_nav.get_radius(),circle_nav.get_angle_total(),turn_velocity),0.0);
+		}
+		else {circle_nav.update(0.0,0.0);}
 		yaw_cmd = circle_nav.get_yaw() + heading_add;
-		if (inertial_nav.get_altitude() <= altitude_start) {
-			pole_detected = false;
-				pole_ascend = false;
-				pole_descend = false;
-				pole_rotate = false;
-				pole_end = false;
-				pole_rotate_counter = 0;
-		}
-		else {
-			target_climb_rate -= pole_descent_rate+pole_descent_rate*-2.0*roll_percent;
-			yaw_cmd = circle_nav.get_yaw() + heading_add;
-		}
 	}
 	else if (pole_ascend == true) {
 		if(pole_rotate_counter == 0) {
@@ -249,6 +242,29 @@ void Copter::circle_run()
 		}
 		else {
 			target_climb_rate += pole_climb_rate;
+			yaw_cmd = circle_nav.get_yaw() + heading_add;
+		}
+	}
+	else if (pole_descend == true) {
+		if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
+		if ((inertial_nav.get_altitude() <= altitude_start) || (obs_dist_blw <= 300)) {
+			if (pole_end == true) {
+				pole_detected = false;
+				pole_ascend = false;
+				pole_descend = false;
+				pole_rotate = false;
+				pole_end = false;
+				pole_rotate_counter = 0;
+			}
+			else {
+				pole_ascend = true;
+				pole_rotate = true;
+				pole_descend = false;
+				pole_rotate_counter+=1;
+			}
+		}	
+		else {
+			target_climb_rate -= pole_climb_rate;
 			yaw_cmd = circle_nav.get_yaw() + heading_add;
 		}
 	}
