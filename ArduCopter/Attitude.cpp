@@ -557,7 +557,8 @@ bool Copter::pole_detection(float dt, float sweep_time, float sweep_angle) {
 float Copter::pole_rotation_alg(int i, float radius, float angle, float vel)
 {
 	float angular_rate = 0.0;
-	if (angle >= ((((float)i - 1.0) * (2.0*3.14/3.0))+(3.14/6.0))) {
+	//if (angle >= ((((float)i - 1.0) * (2.0*3.14/3.0))+(3.14/6.0))) {
+	if(angle >= ((float)i)*3.14/2.0) {
 		pole_rotate=false;
 	}
 	else {angular_rate = vel;}

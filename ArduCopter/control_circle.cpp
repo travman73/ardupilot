@@ -79,8 +79,8 @@ void Copter::circle_run()
     float pole_climb_rate=circle_nav.clmb_rate();
     float turn_velocity=circle_nav.turn_vel();
     float pole_height=circle_nav.pole_height();
-    float obs_dist_fwd=(float)rangefinder.distance_cm(1);
-    float obs_dist_blw=500.0//(float)rangefinder.distance_cm(2); Disable below rangefinder for time being
+    float obs_dist_fwd=(float)rangefinder.distance_cm();
+    float obs_dist_blw=500.0;//(float)rangefinder.distance_cm(2); Disable below rangefinder for time being
     float obstacle_dist_off = circle_nav.obs();
     float obstacle_back_rate = circle_nav.obsrt();
 
@@ -91,11 +91,12 @@ void Copter::circle_run()
     // process pilot inputs
     if (!failsafe.radio) {
         // get pilot's desired yaw rate
+	/*
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
         if (!is_zero(target_yaw_rate)) {
             circle_pilot_yaw_override = true;
         }
-	
+	*/
 	get_pilot_desired_lean_percent(channel_roll->get_control_in(), channel_pitch->get_control_in(), roll_percent, pitch_percent);
 	input_angle_rate=-1.0*roll_percent*max_angle_rate;
 	input_radius_change=pitch_percent*max_radius_change;
@@ -195,59 +196,47 @@ void Copter::circle_run()
         // run circle controller
         if(pole_rotate == false) {circle_nav.update(input_angle_rate,input_radius_change);}
 
-	
-	if(!pole_detected) {
-		pole_detected = pole_detection(G_Dt, 15.0, 90.0);
-		yaw_cmd = circle_nav.get_yaw() + heading_add;
-		if(pole_detected) {
-			circle_nav.set_center_xyz(cent_pos.x, cent_pos.y, cent_pos.z);
-			pole_ascend = true;
-			altitude_start=inertial_nav.get_altitude();
-			pole_leash_altitude = pole_height+altitude_start;
-		}
-	}
-	else if (circle_nav.automatic() <= 0.0) {
+	altitude_start=inertial_nav.get_altitude();
+
+	if (circle_nav.automatic() <= 0.0) {
 		yaw_cmd = circle_nav.get_yaw();
 	}
+	
+	else if (!pole_detected) {pole_ascend = true; pole_detected = true;}
+
 	else if (pole_rotate == true) {
-		if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
-		if (pole_rotate_counter == 2) {
-			if(obs_dist_blw <= 250) {target_climb_rate += pole_climb_rate;}
-		}
-		if((obs_dist_blw > 200) || (pole_rotate_counter != 2)) {
-			circle_nav.update(pole_rotation_alg(pole_rotate_counter,circle_nav.get_radius(),circle_nav.get_angle_total(),turn_velocity),0.0);
-		}
-		else {circle_nav.update(0.0,0.0);}
+		circle_nav.update(pole_rotation_alg(pole_rotate_counter,circle_nav.get_radius(),circle_nav.get_angle_total(),turn_velocity),0.0);
 		yaw_cmd = circle_nav.get_yaw() + heading_add;
 	}
 	else if (pole_ascend == true) {
-		if(pole_rotate_counter == 0) {
-			if (pole_detection(G_Dt, 4.0, 30.0)) {
-				pole_distance=min_distance;
-				if (pole_distance <= pole_min_offset) {circle_nav.change_radius(pole_min_offset-pole_distance);}
-				if (pole_distance >= 2000.0) {pole_leash_altitude = inertial_nav.get_altitude();}
+		if(target_climb_rate <= -1.0*pole_climb_rate) {pole_leash_altitude = inertial_nav.get_altitude();}
+		if(circle_nav.automatic() <= 10.0) {
+			circle_nav.update(turn_velocity,0.0);
+			if (inertial_nav.get_altitude() >= pole_leash_altitude) {
+				pole_ascend = false;
+				pole_rotate = false;
+				pole_descend = true;
+				pole_end = true;
 			}
-			else if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
+			target_climb_rate += pole_climb_rate;
 		}
 		else {
 			heading_add = 0.0;
-			if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
-		}
-		if (inertial_nav.get_altitude() >= pole_leash_altitude) {
-			pole_ascend = false;
-			pole_rotate = true;
-			pole_descend = true;
-			pole_rotate_counter+=1;
-			if(pole_rotate_counter == 3) {pole_end = true;}
-		}
-		else {
-			target_climb_rate += pole_climb_rate;
-			yaw_cmd = circle_nav.get_yaw() + heading_add;
+			if (inertial_nav.get_altitude() >= pole_leash_altitude) {
+				pole_ascend = false;
+				pole_rotate = true;
+				pole_descend = true;
+				pole_rotate_counter+=1;
+				if(pole_rotate_counter == 3) {pole_end = true;}
+			}
+			else {
+				target_climb_rate += pole_climb_rate;
+				yaw_cmd = circle_nav.get_yaw() + heading_add;
+			}
 		}
 	}
 	else if (pole_descend == true) {
-		if (obs_dist_fwd <= obstacle_dist_off) {circle_nav.change_radius(obstacle_back_rate*G_Dt);}
-		if ((inertial_nav.get_altitude() <= altitude_start) || (obs_dist_blw <= 300)) {
+		if ((inertial_nav.get_altitude() <= altitude_start) || (target_climb_rate >= pole_climb_rate)) {
 			if (pole_end == true) {
 				pole_detected = false;
 				pole_ascend = false;
