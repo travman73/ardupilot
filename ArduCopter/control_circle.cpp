@@ -80,7 +80,7 @@ void Copter::circle_run()
     float turn_velocity=circle_nav.turn_vel();
     float pole_height=circle_nav.pole_height();
     float obs_dist_fwd=(float)rangefinder.distance_cm(1);
-    float obs_dist_blw=(float)rangefinder.distance_cm(2);
+    float obs_dist_blw=500.0//(float)rangefinder.distance_cm(2); Disable below rangefinder for time being
     float obstacle_dist_off = circle_nav.obs();
     float obstacle_back_rate = circle_nav.obsrt();
 
