@@ -139,7 +139,7 @@ void Copter::circle_run()
 	circle_nav.update(0.0f,0.0f);
 	attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(wp_nav.get_roll(), wp_nav.get_pitch(), target_yaw_rate, get_smoothing_gain());
 	pos_control.update_z_controller();
-	pole_detected = true;
+	//pole_detected = true;
 	break;
 
     case Loiter_Takeoff:
@@ -168,7 +168,7 @@ void Copter::circle_run()
         pos_control.set_alt_target_from_climb_rate_ff(target_climb_rate, G_Dt, false);
         pos_control.add_takeoff_climb_rate(takeoff_climb_rate, G_Dt);
         pos_control.update_z_controller();
-	pole_detected = true;
+	//pole_detected = true;
         break;
 
     case Loiter_Landed:
@@ -185,7 +185,7 @@ void Copter::circle_run()
         attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(0, 0, 0, get_smoothing_gain());
         pos_control.relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
         pos_control.update_z_controller();
-	pole_detected = true;
+	//pole_detected = true;
         break;
 
     case Loiter_Flying:
@@ -194,15 +194,16 @@ void Copter::circle_run()
         motors.set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
 
         // run circle controller
-        if(pole_rotate == false) {circle_nav.update(input_angle_rate,input_radius_change);}
-
-	altitude_start=inertial_nav.get_altitude();
+        if((pole_rotate == false) && ((circle_nav.automatic() > 10.0) || (circle_nav.automatic() <= 0.0))) {circle_nav.update(input_angle_rate,input_radius_change);}
 
 	if (circle_nav.automatic() <= 0.0) {
 		yaw_cmd = circle_nav.get_yaw();
 	}
 	
-	else if (!pole_detected) {pole_ascend = true; pole_detected = true;}
+	else if (!pole_detected) {pole_ascend = true; pole_detected = true;
+			altitude_start=inertial_nav.get_altitude();
+			pole_leash_altitude=altitude_start+circle_nav.pole_height();
+	}
 
 	else if (pole_rotate == true) {
 		circle_nav.update(pole_rotation_alg(pole_rotate_counter,circle_nav.get_radius(),circle_nav.get_angle_total(),turn_velocity),0.0);
@@ -211,7 +212,7 @@ void Copter::circle_run()
 	else if (pole_ascend == true) {
 		if(target_climb_rate <= -1.0*pole_climb_rate) {pole_leash_altitude = inertial_nav.get_altitude();}
 		if(circle_nav.automatic() <= 10.0) {
-			circle_nav.update(turn_velocity,0.0);
+			circle_nav.update((turn_velocity+input_angle_rate),input_radius_change);
 			if (inertial_nav.get_altitude() >= pole_leash_altitude) {
 				pole_ascend = false;
 				pole_rotate = false;
@@ -219,6 +220,7 @@ void Copter::circle_run()
 				pole_end = true;
 			}
 			target_climb_rate += pole_climb_rate;
+			yaw_cmd = circle_nav.get_yaw();
 		}
 		else {
 			heading_add = 0.0;
