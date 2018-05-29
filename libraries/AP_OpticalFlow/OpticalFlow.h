@@ -53,11 +53,11 @@ public:
     float focal() const { return _focal;}
     float gyrodb() const { return _gdb;}
     float flowdb() const { return _fdb;}
-    float ovrhead() const { return _overhead;}
-    float sonarhz() const { return _sonarhz;}
-    float barohz() const { return _barohz;}
-    float maxzvel() const { return _maxzvel;}
-    float hyz() const { return _hyz;}
+    float ovrhead() const { return _overhead;}	//If rangefinder pointing overhead, set >0. If below <=0
+    float sonarhz() const { return _sonarhz;}	//Low pass frequency for sonar velocity calculation
+    float barohz() const { return _barohz;}	//Low pass frequency for barometric velocity calculation
+    float maxzvel() const { return _maxzvel;}	//This is in cm/s. Threshold difference between rangefinder and altitude.
+    float hyz() const { return _hyz;}	//Less than zero, don't use hybrid altitude
 
     //override - use optical flow, but not for EKF
     bool ovr() const { return _ovr; }
