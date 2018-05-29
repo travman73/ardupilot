@@ -455,6 +455,8 @@ public:
         return false;
     }
     
+    virtual float get_hybrid_z_enable(void) const { return 0; };
+
     // time that the AHRS has been up
     virtual uint32_t uptime_ms(void) const = 0;
 

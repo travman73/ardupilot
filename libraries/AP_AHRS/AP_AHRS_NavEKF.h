@@ -169,9 +169,13 @@ public:
 
    float get_hybrid_dz(void) {return _hybrid_dz;}
 
-   void reset_hybrid_z(float current_altitude);
+   float get_hybrid_z_enable(void) const {return _hyz;} 
 
-   void update_hybrid_z(float lpf1, float lpf2, float sonar_distance, float altitude_distance, float thresh_z, float thresh_dz, float time_2);
+   void reset_hybrid_z(void);
+
+   void update_hybrid_z(float ovrhead, float lpf1, float lpf2, float sonar_distance, float thresh_dz, float time_2, float enable_hyz);
+
+   void disable_hybrid_z(void);
 
    bool get_range_distance(float &dist) const;
 
@@ -331,6 +335,7 @@ private:
     float _baro_vel_z;
     float _hybrid_z;
     float _hybrid_dz;
+    float _hyz=-1.0;
 ///////////////////////////////////////////////////////////////////////////////////
     const uint16_t startup_delay_ms = 1000;
     uint32_t start_time_ms = 0;

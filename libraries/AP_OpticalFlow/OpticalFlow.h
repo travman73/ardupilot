@@ -53,6 +53,11 @@ public:
     float focal() const { return _focal;}
     float gyrodb() const { return _gdb;}
     float flowdb() const { return _fdb;}
+    float ovrhead() const { return _overhead;}
+    float sonarhz() const { return _sonarhz;}
+    float barohz() const { return _barohz;}
+    float maxzvel() const { return _maxzvel;}
+    float hyz() const { return _hyz;}
 
     //override - use optical flow, but not for EKF
     bool ovr() const { return _ovr; }
@@ -162,6 +167,11 @@ private:
     AP_Float _focal;
     AP_Float _gdb;
     AP_Float _fdb;
+    AP_Float _overhead;
+    AP_Float _sonarhz;
+    AP_Float _barohz;
+    AP_Float _maxzvel;
+    AP_Float _hyz;
     // state filled in by backend
     struct OpticalFlow_state _state;
 

@@ -14,6 +14,8 @@
 */
 void AP_InertialNav_NavEKF::update(float dt)
 {
+    float hybz = _ahrs_ekf.get_hybrid_z_enable();
+
     // get the NE position relative to the local earth frame origin
     Vector2f posNE;
     if (_ahrs_ekf.get_relative_position_NE(posNE)) {
@@ -24,8 +26,10 @@ void AP_InertialNav_NavEKF::update(float dt)
 // get the velocity relative to the local earth frame
     Vector3f velNED;
     if (_ahrs_ekf.get_velocity_NED(velNED)) {
-        _velocity_cm = velNED * 100; // convert to cm/s
-        _velocity_cm.z = -_velocity_cm.z; // convert from NED to NEU
+        _velocity_cm.x = velNED.x * 100; // convert to cm/s
+	_velocity_cm.y = velNED.y * 100; // convert to cm/s
+	if(hybz < 0.0) {_velocity_cm.z = velNED.z * -100;} // convert from NED to NEU
+	else {_velocity_cm.z = _ahrs_ekf.get_hybrid_dz();}
     }
 ///////////////////////////////////////////////////////////////////////////////////
 /// Added for OF NAV //////////////////////////////////////////////////////////////
@@ -124,9 +128,12 @@ void AP_InertialNav_NavEKF::update(float dt)
 
     // get the D position relative to the local earth frame origin
     float posD;
-    if (_ahrs_ekf.get_relative_position_D(posD)) {
-        _relpos_cm.z = - posD * 100; // convert from m in NED to cm in NEU
+    if (hybz < 0.0) {
+    	if (_ahrs_ekf.get_relative_position_D(posD)) {
+        	_relpos_cm.z = - posD * 100; // convert from m in NED to cm in NEU
+    	}
     }
+    else {_relpos_cm.z = _ahrs_ekf.get_hybrid_z();}
 
     // get the absolute WGS-84 position
     _haveabspos = _ahrs_ekf.get_position(_abspos);

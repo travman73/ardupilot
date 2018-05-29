@@ -372,8 +372,13 @@ void AC_WPNav::update_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler)
         if (dt >= 0.2f) {
             dt = 0.0f;
         }
+
+	float hybz = _ahrs.get_hybrid_z_enable();
+
+	if(hybz < 0.0) {
         // initialise ekf position reset check
         check_for_ekf_position_reset();
+	}
 
         // initialise pos controller speed and acceleration
         _pos_control.set_speed_xy(_loiter_speed_cms);
@@ -398,9 +403,15 @@ void AC_WPNav::update_of_loiter(float ekfGndSpdLimit, float ekfNavVelGainScaler,
         if (dt >= 0.2f) {
             dt = 0.0f;
         }
+
+
+	float hybz = _ahrs.get_hybrid_z_enable();
+
+	if(hybz < 0.0) {
         // initialise ekf position reset check
         //check_for_ekf_position_reset();
 	of_check_for_ekf_z_reset(); //
+	}
 
         // initialise pos controller speed and acceleration
         _pos_control.set_speed_xy(_loiter_speed_cms);

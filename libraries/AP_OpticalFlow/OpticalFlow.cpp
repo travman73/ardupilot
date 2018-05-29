@@ -121,6 +121,11 @@ const AP_Param::GroupInfo OpticalFlow::var_info[] = {
     AP_GROUPINFO("_focal", 25,  OpticalFlow,    _focal,   1.0),
     AP_GROUPINFO("_gyrodb", 26,  OpticalFlow,    _gdb,   0.0),
     AP_GROUPINFO("_flowdb", 27,  OpticalFlow,    _fdb,   0.0),
+    AP_GROUPINFO("_ovrhead", 28,  OpticalFlow,    _overhead,   0.0),
+    AP_GROUPINFO("_sonarhz", 29,  OpticalFlow,    _sonarhz,   72.0),
+    AP_GROUPINFO("_barohz", 30,  OpticalFlow,    _barohz,   72.0),
+    AP_GROUPINFO("_maxzvel", 31,  OpticalFlow,    _maxzvel,   0.0),
+    AP_GROUPINFO("_hyz", 32,  OpticalFlow,    _hyz,   0.0),
 
     AP_GROUPEND
 };

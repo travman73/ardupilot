@@ -260,7 +260,9 @@ void Copter::update_optical_flow(void)
 ///////////////////////////////////////////////////////////////////////////////////////
 	if (optflow.enabled() || optflow.ovr()) {
 		ahrs.update_flow_nav(of_ned_cms, (float)rangefinder.distance_cm(), tmo, 1.0, optflow.n11(), optflow.n12(), optflow.n21(), optflow.n22(),optflow.maxvel(),optflow.dist());
+		ahrs.update_hybrid_z(optflow.ovrhead(),optflow.sonarhz(),optflow.barohz(), rangefinder_state.alt_cm, optflow.maxzvel(),tmo,optflow.hyz());
 	}
+	else {ahrs.disable_hybrid_z();}
 ///////////////////////////////////////////////////////////////////////////////////////
         if ((g.log_bitmask & MASK_LOG_OPTFLOW) || optflow.ovr()) {
             Log_Write_Optflow();

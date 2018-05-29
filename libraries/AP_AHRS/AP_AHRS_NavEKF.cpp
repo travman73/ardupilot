@@ -1041,19 +1041,36 @@ bool AP_AHRS_NavEKF::get_filter_status(nav_filter_status &status) const
 /// Added for OF NAV //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////
 
-void AP_AHRS_NavEKF::reset_hybrid_z(float current_altitude)
+void  AP_AHRS_NavEKF::disable_hybrid_z(void)
 {
-	_hybrid_z = current_altitude;
+	_hyz=-1.0;
+}
+
+void AP_AHRS_NavEKF::reset_hybrid_z(void)
+{
+	float altitude_distance;
+	if(get_relative_position_D(altitude_distance)) {
+		altitude_distance=altitude_distance*-100;
+	}	
+	_hybrid_z = altitude_distance;
 	_hybrid_dz = 0.0;
 }
 
-void AP_AHRS_NavEKF::update_hybrid_z(float lpf1, float lpf2, float sonar_distance, float altitude_distance, float thresh_z, float thresh_dz, float time_2)
+void AP_AHRS_NavEKF::update_hybrid_z(float ovrhead, float lpf1, float lpf2, float sonar_distance, float thresh_dz, float time_2, float enable_hyz)
 {
+	float altitude_distance;
+	if(get_relative_position_D(altitude_distance)) {
+		altitude_distance=altitude_distance*-100;
+	}	
+	_hyz = enable_hyz;
+	float flipz;
+	if(ovrhead > 0.0) {flipz = 1.0;}
+	else {flipz = -1.0;}
 	float alpha_z=6.28*(time_2-_tmo2)*lpf1;
 	alpha_z=alpha_z/(alpha_z+1.0);
 	float alpha2_z=6.28*(time_2-_tmo2)*lpf2;
 	alpha2_z=alpha2_z/(alpha2_z+1.0);
-	_sonar_vel_z=_sonar_vel_z*(1.0-alpha_z)+(_sonar_dist-sonar_distance)/((time_2-_tmo2)/1000000.0)*alpha_z;
+	_sonar_vel_z=_sonar_vel_z*(1.0-alpha_z)+((_sonar_dist-sonar_distance)*flipz)/((time_2-_tmo2)/1000000.0)*alpha_z;
 	_baro_vel_z=_baro_vel_z*(1.0-alpha2_z)+(altitude_distance-_baro_dist)/((time_2-_tmo2)/1000000.0)*alpha2_z;
 	_baro_dist = altitude_distance;
 	_sonar_dist = sonar_distance;
@@ -1062,7 +1079,7 @@ void AP_AHRS_NavEKF::update_hybrid_z(float lpf1, float lpf2, float sonar_distanc
 		_sonar_vel_z = 0.0;
 		_baro_vel_z = 0.0;
 	}	
-	if((sonar_distance >= thresh_z) || ((vel_diff*vel_diff) >= thresh_dz)) {
+	if((sonar_distance >= _maxdist) || ((vel_diff*vel_diff) >= thresh_dz)) {
 		_hybrid_z = _hybrid_z+_baro_vel_z*(time_2-_tmo2);
 		_hybrid_dz = _baro_vel_z;
 	}
