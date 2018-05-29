@@ -165,6 +165,14 @@ public:
 
    float get_of_z_pos(void) {return _rng_dist;}
 
+   float get_hybrid_z(void) {return _hybrid_z;}
+
+   float get_hybrid_dz(void) {return _hybrid_dz;}
+
+   void reset_hybrid_z(float current_altitude);
+
+   void update_hybrid_z(float lpf1, float lpf2, float sonar_distance, float altitude_distance, float thresh_z, float thresh_dz, float time_2);
+
    bool get_range_distance(float &dist) const;
 
    float get_n11() {return _n11;}
@@ -316,6 +324,13 @@ private:
     float _n22;
     float _maxvel;
     float _maxdist;
+    float _tmo2=0.0;
+    float _sonar_dist;
+    float _baro_dist;
+    float _sonar_vel_z;
+    float _baro_vel_z;
+    float _hybrid_z;
+    float _hybrid_dz;
 ///////////////////////////////////////////////////////////////////////////////////
     const uint16_t startup_delay_ms = 1000;
     uint32_t start_time_ms = 0;
